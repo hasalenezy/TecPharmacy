@@ -415,10 +415,7 @@ td { padding:11px 14px; font-size:13px; }
         <div class="card-title">🛠️ أدوات البيانات</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-secondary" onclick="whBackup()">💾 نسخ احتياطي</button>
-          <label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            📂 استعادة نسخة
-            <input type="file" accept=".json" style="display:none" onchange="whRestore(event)">
-          </label>
+          <button class="btn-secondary" onclick="document.getElementById('restore-input').click()">📂 استعادة نسخة</button>
         </div>
       </div>
     </div>
@@ -431,9 +428,9 @@ td { padding:11px 14px; font-size:13px; }
       <button class="fbtn" onclick="setInvF('narcotic',this)">🔴 مخدرة</button>
       <button class="fbtn" onclick="setInvF('psycho',this)">🟣 نفسية</button>
       <button class="fbtn" onclick="exportExcel()">📥 Excel</button>
-      <label class="fbtn" style="cursor:pointer">📤 استيراد<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)"></label>
+      <button class="fbtn" onclick="document.getElementById('excel-import-input').click()">📤 استيراد</button>
       <button class="fbtn" onclick="whBackup()" style="border-color:#7c3aed40;color:#a78bfa">💾 نسخ احتياطي</button>
-      <label class="fbtn" style="cursor:pointer;border-color:#f59e0b40;color:var(--warn)">📂 استعادة<input type="file" accept=".json" style="display:none" onchange="whRestore(event)"></label>
+      <button class="fbtn" style="border-color:#f59e0b40;color:var(--warn)" onclick="document.getElementById('restore-input').click()">📂 استعادة</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -531,10 +528,7 @@ td { padding:11px 14px; font-size:13px; }
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">يمكنك تصدير نسخة احتياطية من بيانات المخزون واستعادتها لاحقاً. ملاحظة: الاستعادة تضيف الأدوية فقط ولا تعدل الكميات الحالية.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-primary" onclick="whBackup()">💾 تصدير نسخة احتياطية</button>
-      <label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-        📂 استعادة نسخة
-        <input type="file" accept=".json" style="display:none" onchange="whRestore(event)">
-      </label>
+      <button class="btn-secondary" onclick="document.getElementById('restore-input').click()">📂 استعادة نسخة</button>
     </div>
   </div>
   <div class="card" id="wh-backup-preview" style="display:none">
@@ -919,7 +913,7 @@ function buildUserToolsTab(p){
       ${p.backup  ?'<button class="btn-secondary" onclick="whBackup()">💾 نسخ احتياطي</button>':''}
       ${p.restore ?'<label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">📂 استعادة نسخة<input type="file" accept=".json" style="display:none" onchange="whRestore(event)"></label>':''}
       ${p.export  ?'<button class="btn-secondary" onclick="exportExcel()">📥 تصدير Excel</button>':''}
-      ${p.import  ?'<label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">📤 استيراد Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)"></label>':''}
+      ${p.import  ?'<button class="btn-secondary" onclick="document.getElementById(\'excel-import-input\').click()">📤 استيراد Excel</button>':''}
     </div>
   </div>`;
 
@@ -1750,5 +1744,8 @@ window.confirmWhRestore = async function(){
 }
 
 </script>
+<!-- Global file inputs for mobile compatibility -->
+<input type="file" id="restore-input" accept=".json" style="display:none" onchange="whRestore(event)">
+<input type="file" id="excel-import-input" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)">
 </body>
 </html>
