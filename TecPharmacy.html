@@ -1661,24 +1661,41 @@ function whRestore(e){
   reader.onload=async function(ev){
     try{
       const backup=JSON.parse(ev.target.result);
-      if(!backup.drugs||!Array.isArray(backup.drugs)){showMsg('❌ ملف غير صحيح');return;}
+      // Support both old format (drugs array) and new format
+      const drugsArr = backup.drugs || backup;
+      if(!Array.isArray(drugsArr)||!drugsArr.length){showMsg('❌ ملف غير صحيح أو فارغ');return;}
       
-      // Show preview first
+      // Normalize fields - support old format (category, id as number) and new format (cat)
+      const normalized = drugsArr.map(d=>({
+        name:    d.name || d.nameAr || '',
+        type:    d.type || 'أخرى',
+        qty:     d.qty || 0,
+        exp:     d.exp || '',
+        cat:     d.cat || d.category || 'regular',
+        note:    d.note || '',
+      })).filter(d=>d.name);
+
+      // Store normalized for confirm
+      window._pendingRestore = normalized;
+      
+      // Show preview
       const preview=document.getElementById('wh-backup-preview');
       const info=document.getElementById('wh-backup-info');
       preview.style.display='block';
       info.innerHTML=`
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-          <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${backup.count||backup.drugs.length}</div><div class="stat-lbl">عدد الأدوية</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${normalized.length}</div><div class="stat-lbl">عدد الأدوية</div></div>
           <div class="stat-card"><div class="stat-num" style="font-size:14px;color:var(--accent)">${backup.exportedBy||'—'}</div><div class="stat-lbl">صدّرها</div></div>
-          <div class="stat-card"><div class="stat-num" style="font-size:12px;color:var(--text-muted)">${new Date(backup.exportedAt||'').toLocaleDateString('ar-SA')}</div><div class="stat-lbl">تاريخ النسخة</div></div>
+          <div class="stat-card"><div class="stat-num" style="font-size:12px;color:var(--text-muted)">${backup.exportedAt?new Date(backup.exportedAt).toLocaleDateString('ar-SA'):'—'}</div><div class="stat-lbl">تاريخ النسخة</div></div>
         </div>
-        <p style="font-size:12px;color:var(--warn);margin-bottom:14px">⚠️ ستُضاف الأدوية الجديدة فقط — لن تتغير الكميات الحالية أو تُحذف أي بيانات</p>
-        <button class="btn-primary" onclick="confirmWhRestore(${JSON.stringify(backup.drugs).split('').map(c=>c.charCodeAt(0)).join(',')})">تأكيد الاستعادة</button>`;
-      
-      // Store parsed data for confirm
-      window._pendingRestore=backup.drugs;
-      info.querySelector('button').onclick=confirmWhRestore;
+        <div style="max-height:180px;overflow-y:auto;margin-bottom:14px">
+          ${normalized.map(d=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between">
+            <span style="font-weight:600">${d.name}</span>
+            <span style="color:var(--accent2)">📦 ${d.qty}</span>
+          </div>`).join('')}
+        </div>
+        <p style="font-size:12px;color:var(--warn);margin-bottom:14px">⚠️ الأدوية الموجودة لن تُحذف — ستُضاف الأدوية الجديدة فقط</p>
+        <button class="btn-primary" onclick="confirmWhRestore()">تأكيد الاستعادة</button>`;
       
       showMsg('✅ تم قراءة الملف — راجع المعاينة أدناه');
     }catch(err){ showMsg('❌ خطأ في قراءة الملف'); }
