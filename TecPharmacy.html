@@ -1707,26 +1707,46 @@ function whRestore(e){
 async function confirmWhRestore(){
   const pending=window._pendingRestore;
   if(!pending||!pending.length){showMsg('⚠️ لا توجد بيانات للاستعادة');return;}
-  let added=0;
+  if(!fbDb){showMsg('⚠️ Firebase غير متصل');return;}
+  
+  showMsg('⏳ جاري الاستعادة...');
+  let added=0, skipped=0;
+  
   for(const d of pending){
     if(!d.name) continue;
-    // Only add if drug doesn't exist (by name)
-    const exists=drugs.find(x=>(x.name||'').toLowerCase()===d.name.toLowerCase());
-    if(!exists){
-      const ref=await fbDb.collection('tp_drugs').add({
-        name:d.name, type:d.type||'أخرى', qty:d.qty||0,
-        exp:d.exp||'', cat:d.cat||'regular', note:d.note||'',
-        addedBy:CUD?.name||'', restoredAt:firebase.firestore.FieldValue.serverTimestamp()
-      });
-      drugs.push({id:ref.id,...d});
+    try{
+      // Check if drug already exists
+      const exists=drugs.find(x=>(x.name||'').toLowerCase().trim()===d.name.toLowerCase().trim());
+      if(exists){ skipped++; continue; }
+      
+      const drugData={
+        name: d.name,
+        type: d.type||'أخرى',
+        qty:  d.qty||0,
+        exp:  d.exp||'',
+        cat:  d.cat||d.category||'regular',
+        note: d.note||'',
+        addedBy: CUD?.name||'',
+        restoredAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      const ref=await fbDb.collection('tp_drugs').add(drugData);
+      drugs.push({id:ref.id,...drugData});
       added++;
+    }catch(e){
+      console.error('Error adding drug:',d.name,e);
     }
   }
-  await logActivity('📂 استعادة نسخة احتياطية',`تم إضافة ${added} دواء جديد`);
-  showMsg('✅ تم استعادة '+added+' دواء جديد');
-  document.getElementById('wh-backup-preview').style.display='none';
+  
+  await logActivity('📂 استعادة نسخة احتياطية',`تم إضافة ${added} دواء`);
+  showMsg(`✅ تم استعادة ${added} دواء${skipped?' (تخطي '+skipped+' موجود)':''}`);
+  
+  const preview=document.getElementById('wh-backup-preview');
+  if(preview) preview.style.display='none';
   window._pendingRestore=null;
+  
+  renderInv();
   renderWhInv();
+  updateDispSel();
 }
 
 </script>
