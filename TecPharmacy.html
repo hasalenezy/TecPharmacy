@@ -1654,44 +1654,61 @@ function whBackup(){
 function whRestore(e){
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
-  reader.onload=function(ev){
+  reader.onload=async function(ev){
     try{
       const backup=JSON.parse(ev.target.result);
-      const drugsArr = backup.drugs || backup;
-      if(!Array.isArray(drugsArr)||!drugsArr.length){showMsg('❌ ملف غير صحيح أو فارغ');return;}
+      const drugsArr=backup.drugs||backup;
+      if(!Array.isArray(drugsArr)||!drugsArr.length){showMsg('❌ ملف غير صحيح');return;}
       
-      const normalized = drugsArr.map(d=>({
-        name: d.name || d.nameAr || '',
-        type: d.type || 'أخرى',
-        qty:  d.qty || 0,
-        exp:  d.exp || '',
-        cat:  d.cat || d.category || 'regular',
-        note: d.note || '',
+      const normalized=drugsArr.map(d=>({
+        name: d.name||d.nameAr||'',
+        type: d.type||'أخرى',
+        qty:  d.qty||0,
+        exp:  d.exp||'',
+        cat:  d.cat||d.category||'regular',
+        note: d.note||'',
       })).filter(d=>d.name.trim());
 
-      window._pendingRestore = normalized;
-      
+      if(!normalized.length){showMsg('❌ لا توجد أدوية في الملف');return;}
+      if(!fbDb){showMsg('⚠️ Firebase غير متصل');return;}
+
+      // Show preview
       const preview=document.getElementById('wh-backup-preview');
       const info=document.getElementById('wh-backup-info');
-      const confirmBtn=document.getElementById('restore-confirm-btn');
-      
       preview.style.display='block';
       info.innerHTML=
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">' +
-          '<div class="stat-card"><div class="stat-num" style="color:var(--accent2)">'+normalized.length+'</div><div class="stat-lbl">عدد الأدوية</div></div>' +
-          '<div class="stat-card"><div class="stat-num" style="font-size:14px;color:var(--accent)">'+(backup.exportedBy||'—')+'</div><div class="stat-lbl">صدّرها</div></div>' +
-          '<div class="stat-card"><div class="stat-num" style="font-size:12px;color:var(--text-muted)">'+(backup.exportedAt?new Date(backup.exportedAt).toLocaleDateString('ar-SA'):'—')+'</div><div class="stat-lbl">تاريخ النسخة</div></div>' +
+        '<div style="margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:10px;font-size:13px">' +
+          '<div style="font-weight:700;margin-bottom:6px">📋 محتوى الملف: '+normalized.length+' دواء</div>' +
+          '<div style="max-height:160px;overflow-y:auto">' +
+            normalized.map(d=>'<div style="padding:5px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><span>'+d.name+'</span><span style="color:var(--accent2);font-weight:700">'+d.qty+'</span></div>').join('') +
+          '</div>' +
         '</div>' +
-        '<div style="max-height:180px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;padding:8px">' +
-          normalized.map(d=>'<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between"><span style="font-weight:600">'+d.name+'</span><span style="color:var(--accent2)">📦 '+d.qty+'</span></div>').join('') +
-        '</div>' +
-        '<p style="font-size:12px;color:var(--warn);margin-bottom:14px">⚠️ الأدوية الموجودة لن تُحذف — ستُضاف الجديدة فقط</p>';
-      
-      confirmBtn.style.display='inline-block';
-      showMsg('✅ تم قراءة الملف — اضغط تأكيد الاستعادة');
-    }catch(err){ 
+        '<p style="font-size:12px;color:var(--warn);margin-bottom:12px">⚠️ ستُضاف الأدوية الجديدة فقط بدون حذف الموجودة</p>';
+
+      // ── استعادة مباشرة بدون زر ثاني ──
+      showMsg('⏳ جاري الاستعادة...');
+      let added=0, skipped=0;
+      for(const d of normalized){
+        try{
+          const exists=drugs.find(x=>(x.name||'').toLowerCase().trim()===d.name.toLowerCase().trim());
+          if(exists){skipped++;continue;}
+          const ref=await fbDb.collection('tp_drugs').add({
+            name:d.name, type:d.type, qty:d.qty,
+            exp:d.exp, cat:d.cat, note:d.note,
+            addedBy:CUD?.name||'',
+            restoredAt:firebase.firestore.FieldValue.serverTimestamp()
+          });
+          drugs.push({id:ref.id,name:d.name,type:d.type,qty:d.qty,exp:d.exp,cat:d.cat,note:d.note});
+          added++;
+        }catch(err){console.error('drug error:',d.name,err);}
+      }
+      await logActivity('📂 استعادة','تم إضافة '+added+' دواء');
+      showMsg('✅ تم استعادة '+added+' دواء'+(skipped?' ('+skipped+' موجود مسبقاً)':''));
+      document.getElementById('restore-confirm-btn').style.display='none';
+      renderInv(); renderWhInv(); updateDispSel();
+    }catch(err){
       console.error(err);
-      showMsg('❌ خطأ في قراءة الملف'); 
+      showMsg('❌ خطأ: '+err.message);
     }
   };
   reader.readAsText(file,'UTF-8');
