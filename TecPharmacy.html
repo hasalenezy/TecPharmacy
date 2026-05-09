@@ -1797,40 +1797,79 @@ async function checkInteractions(){
   wrap.innerHTML='<div class="card" style="text-align:center;padding:24px"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="color:var(--text-muted)">جاري التحليل...</div></div>';
 
   try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{
-          role:'user',
-          content:`أنت صيدلاني متخصص. حلل التعارضات الدوائية بين هذه الأدوية:
+    // Local drug interaction database
+    const INTERACTIONS = [
+      {drugs:['warfarin','وارفارين'],conflicts:[
+        {with:['aspirin','أسبرين','clopidogrel','كلوبيدوجريل'],s:'شديد',d:'خطر نزيف شديد عند الجمع بين مضادات التخثر ومضادات الصفيحات',r:'تجنب الجمع — استشر الطبيب'},
+        {with:['ibuprofen','إيبوبروفين','diclofenac','ديكلوفيناك'],s:'شديد',d:'مضادات الالتهاب غير الستيرويدية تزيد مستوى الوارفارين وخطر النزيف',r:'تجنب الجمع أو مراقبة INR بشكل مكثف'},
+        {with:['fluconazole','فلوكونازول'],s:'شديد',d:'فلوكونازول يثبط استقلاب الوارفارين مما يرفع مستواه بشكل كبير',r:'راقب INR وقلل جرعة الوارفارين إذا لزم'},
+        {with:['ciprofloxacin','سيبروفلوكساسين','metronidazole','ميترونيدازول'],s:'متوسط',d:'المضادات الحيوية تؤثر على بكتيريا الأمعاء المنتجة لفيتامين K',r:'راقب INR خلال الدورة العلاجية'},
+      ]},
+      {drugs:['metformin','ميتفورمين'],conflicts:[
+        {with:['alcohol','كحول'],s:'متوسط',d:'خطر الحماض اللبني عند الجمع',r:'تجنب الكحول'},
+        {with:['contrast','صبغة تباين'],s:'شديد',d:'خطر الحماض اللبني عند استخدام صبغة التباين',r:'أوقف الميتفورمين 48 ساعة قبل وبعد الصبغة'},
+      ]},
+      {drugs:['tramadol','ترامادول'],conflicts:[
+        {with:['sertraline','سيرترالين','fluoxetine','فلوكستين'],s:'شديد',d:'خطر متلازمة السيروتونين — ارتفاع السيروتونين بشكل خطير',r:'تجنب الجمع — استخدم مسكن بديل'},
+        {with:['diazepam','ديازيبام','midazolam','ميدازولام','lorazepam','لورازيبام'],s:'شديد',d:'تثبيط الجهاز العصبي المركزي والتنفس',r:'تجنب الجمع أو استخدم بحذر شديد مع مراقبة'},
+        {with:['carbamazepine','كاربامازيبين'],s:'متوسط',d:'كاربامازيبين يقلل فاعلية ترامادول',r:'قد تحتاج جرعة أعلى — استشر الطبيب'},
+      ]},
+      {drugs:['aspirin','أسبرين'],conflicts:[
+        {with:['ibuprofen','إيبوبروفين'],s:'متوسط',d:'إيبوبروفين يمنع التأثير المضاد للصفيحات للأسبرين',r:'تناول الأسبرين قبل إيبوبروفين بساعتين على الأقل'},
+        {with:['methotrexate','ميثوتريكسات'],s:'شديد',d:'الأسبرين يزيد سمية ميثوتريكسات',r:'تجنب الجمع'},
+      ]},
+      {drugs:['amlodipine','أملوديبين'],conflicts:[
+        {with:['simvastatin','سيمفاستاتين'],s:'متوسط',d:'أملوديبين يرفع مستوى سيمفاستاتين وخطر اعتلال العضلات',r:'لا تتجاوز 20mg سيمفاستاتين مع أملوديبين'},
+      ]},
+      {drugs:['ciprofloxacin','سيبروفلوكساسين'],conflicts:[
+        {with:['antacid','مضاد حموضة','calcium','كالسيوم','magnesium','ماغنيسيوم','iron','حديد'],s:'متوسط',d:'المعادن تقلل امتصاص سيبروفلوكساسين بشكل كبير',r:'تناول سيبروفلوكساسين قبل هذه الأدوية بساعتين'},
+        {with:['theophylline','ثيوفيلين'],s:'شديد',d:'سيبروفلوكساسين يرفع مستوى ثيوفيلين بشكل خطير',r:'راقب مستوى ثيوفيلين وقلل الجرعة'},
+      ]},
+      {drugs:['omeprazole','أوميبرازول'],conflicts:[
+        {with:['clopidogrel','كلوبيدوجريل'],s:'متوسط',d:'أوميبرازول يقلل فاعلية كلوبيدوجريل',r:'استخدم بانتوبرازول بدلاً من أوميبرازول'},
+        {with:['methotrexate','ميثوتريكسات'],s:'متوسط',d:'أوميبرازول يقلل إفراز ميثوتريكسات',r:'راقب سمية ميثوتريكسات'},
+      ]},
+      {drugs:['furosemide','فيوروسيمايد'],conflicts:[
+        {with:['aminoglycoside','أمينوغليكوسيد','gentamicin','جنتاميسين'],s:'شديد',d:'خطر سمية الكلى والأذن يزداد بشكل كبير',r:'تجنب الجمع إذا أمكن — راقب وظائف الكلى والسمع'},
+        {with:['lithium','ليثيوم'],s:'شديد',d:'فيوروسيمايد يرفع مستوى الليثيوم ويزيد سميته',r:'راقب مستوى الليثيوم في الدم'},
+      ]},
+      {drugs:['insulin','أنسولين'],conflicts:[
+        {with:['prednisolone','بريدنيزولون','dexamethasone','ديكساميثازون','hydrocortisone','هيدروكورتيزون'],s:'متوسط',d:'الكورتيكوستيرويدات ترفع سكر الدم وتقلل فاعلية الأنسولين',r:'راقب سكر الدم وزد جرعة الأنسولين إذا لزم'},
+        {with:['metoprolol','ميتوبرولول','atenolol','أتينولول'],s:'متوسط',d:'حاصرات بيتا تخفي أعراض نقص السكر',r:'راقب سكر الدم بعناية'},
+      ]},
+      {drugs:['haloperidol','هالوبيريدول'],conflicts:[
+        {with:['metoclopramide','ميتوكلوبراميد'],s:'متوسط',d:'خطر زيادة الأعراض خارج الهرمية (رعشة، تيبس)',r:'تجنب الجمع — استخدم مضاد غثيان بديل'},
+        {with:['quetiapine','كويتيابين','olanzapine','أولانزابين'],s:'متوسط',d:'تضاعف خطر الأعراض الجانبية للمضادات الذهانية',r:'استخدم دواء واحد فقط'},
+      ]},
+    ];
 
-${diItems.map((d,i)=>(i+1)+'. '+d).join('\n')}
+    // Check interactions
+    const foundInteractions = [];
+    const lowerDrugs = diItems.map(d=>d.toLowerCase());
 
-أجب بصيغة JSON فقط بدون أي نص إضافي:
-{
-  "hasInteractions": true/false,
-  "interactions": [
-    {
-      "drug1": "اسم الدواء الأول",
-      "drug2": "اسم الدواء الثاني", 
-      "severity": "شديد/متوسط/خفيف",
-      "description": "وصف التعارض",
-      "recommendation": "التوصية"
-    }
-  ],
-  "summary": "ملخص عام"
-}`
-        }]
-      })
+    INTERACTIONS.forEach(entry=>{
+      const matchedDrug = entry.drugs.find(d=>lowerDrugs.some(ld=>ld.includes(d.toLowerCase())));
+      if(!matchedDrug) return;
+      const drugName = diItems.find(d=>d.toLowerCase().includes(matchedDrug.toLowerCase()))||matchedDrug;
+
+      entry.conflicts.forEach(conflict=>{
+        const conflictMatch = conflict.with.find(w=>lowerDrugs.some(ld=>ld.includes(w.toLowerCase())&&!ld.includes(matchedDrug.toLowerCase())));
+        if(!conflictMatch) return;
+        const conflictName = diItems.find(d=>d.toLowerCase().includes(conflictMatch.toLowerCase()))||conflictMatch;
+        // Avoid duplicates
+        const exists = foundInteractions.find(i=>
+          (i.drug1===drugName&&i.drug2===conflictName)||(i.drug1===conflictName&&i.drug2===drugName));
+        if(!exists) foundInteractions.push({drug1:drugName,drug2:conflictName,severity:conflict.s,description:conflict.d,recommendation:conflict.r});
+      });
     });
 
-    const data=await resp.json();
-    const txt2=data.content?.[0]?.text||'';
-    const clean=txt2.replace(/```json|```/g,'').trim();
-    const result=JSON.parse(clean);
+    const result = {
+      hasInteractions: foundInteractions.length > 0,
+      interactions: foundInteractions,
+      summary: foundInteractions.length===0
+        ? 'لم يُعثر على تعارضات معروفة بين الأدوية المدخلة. هذا لا يعني غياب التعارضات — استشر الصيدلاني للتأكيد.'
+        : `وُجد ${foundInteractions.length} تعارض — يرجى مراجعة الصيدلاني أو الطبيب قبل الجمع بين هذه الأدوية.`
+    };
 
     if(!result.hasInteractions){
       wrap.innerHTML=`<div class="card" style="border-right:4px solid var(--success)">
