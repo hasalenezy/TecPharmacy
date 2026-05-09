@@ -587,11 +587,23 @@ td { padding:11px 14px; font-size:13px; }
 <div class="tab-content" id="tab-drug-inter">
   <div class="card">
     <div class="card-title">⚠️ كشف تعارض الأدوية</div>
-    <div class="field">
-      <label>أدخل قائمة أدوية المريض (دواء في كل سطر)</label>
-      <textarea id="di-drugs" placeholder="مثال:&#10;أموكسيسيلين 500mg&#10;إيبوبروفين 400mg&#10;وارفارين 5mg&#10;أوميبرازول 20mg" style="min-height:140px"></textarea>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:600">ابحث وأضف الأدوية</label>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="flex:1;position:relative">
+          <input type="text" id="di-search" placeholder="اكتب اسم الدواء بالعربي أو الإنجليزي..." autocomplete="off"
+            oninput="onDiSearch()"
+            style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
+          <div id="di-sug" style="position:absolute;top:100%;right:0;left:0;background:var(--surface);border:1px solid var(--accent);border-radius:10px;z-index:100;max-height:220px;overflow-y:auto;display:none;margin-top:4px;box-shadow:0 8px 20px rgba(0,0,0,0.15)"></div>
+        </div>
+        <button class="btn-secondary" onclick="addDiDrug()">➕ أضف</button>
+      </div>
     </div>
-    <button class="btn-primary" onclick="checkInteractions()">🔍 كشف التعارضات</button>
+    <div id="di-list" style="margin-bottom:14px"><div style="font-size:13px;color:var(--text-muted);padding:8px">لم تضف أي أدوية بعد — أضف دواءين على الأقل</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" onclick="checkInteractions()">🔍 كشف التعارضات</button>
+      <button class="btn-secondary" onclick="clearDiList()" style="color:var(--danger)">🗑️ مسح</button>
+    </div>
   </div>
   <div id="di-result" style="margin-top:16px"></div>
 </div>
@@ -1725,12 +1737,61 @@ function calcDose(){
 }
 
 // ═══ DRUG INTERACTIONS (Claude AI) ═══
+let diItems = [];
+
+window.onDiSearch = function(){
+  const q = document.getElementById('di-search').value.trim().toLowerCase();
+  const sug = document.getElementById('di-sug');
+  if(q.length < 2){ sug.style.display='none'; return; }
+  const matches = DRUG_DB.filter(d =>
+    d.n.toLowerCase().includes(q) || d.a.includes(q)
+  ).slice(0, 10);
+  if(!matches.length){ sug.style.display='none'; return; }
+  sug.innerHTML = matches.map(d => `
+    <div onclick="selDiDrug('${d.a} ${d.c}','${d.n} ${d.c}')"
+      style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <div style="font-weight:700;font-size:13px">${d.n} <span style="color:var(--accent);font-size:12px">${d.c}</span></div>
+      <div style="font-size:11px;color:var(--text-muted)">${d.a} — ${d.f} ${d.t==='narcotic'?'🔴':d.t==='psycho'?'🟣':''}</div>
+    </div>`).join('');
+  sug.style.display = 'block';
+};
+
+window.selDiDrug = function(arName, enName){
+  document.getElementById('di-search').value = enName;
+  document.getElementById('di-sug').style.display = 'none';
+  addDiDrug(enName);
+};
+
+window.addDiDrug = function(name){
+  const val = name || document.getElementById('di-search').value.trim();
+  if(!val){ showMsg('⚠️ أدخل اسم الدواء'); return; }
+  if(diItems.find(d=>d.toLowerCase()===val.toLowerCase())){ showMsg('⚠️ الدواء مضاف مسبقاً'); return; }
+  diItems.push(val);
+  document.getElementById('di-search').value = '';
+  document.getElementById('di-sug').style.display = 'none';
+  renderDiList();
+};
+
+function renderDiList(){
+  const wrap = document.getElementById('di-list');
+  if(!diItems.length){
+    wrap.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:8px">لم تضف أي أدوية بعد — أضف دواءين على الأقل</div>';
+    return;
+  }
+  wrap.innerHTML = diItems.map((d,i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-radius:10px;margin-bottom:6px">
+      <span style="font-size:13px;font-weight:600">${i+1}. ${d}</span>
+      <button onclick="removeDiDrug(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;line-height:1">✕</button>
+    </div>`).join('');
+}
+
+window.removeDiDrug = function(i){ diItems.splice(i,1); renderDiList(); };
+window.clearDiList = function(){ diItems=[]; renderDiList(); document.getElementById('di-result').innerHTML=''; };
+
 async function checkInteractions(){
-  const txt=document.getElementById('di-drugs').value.trim();
-  if(!txt){showMsg('⚠️ أدخل قائمة الأدوية');return;}
-  
-  const drugs=txt.split('\n').map(d=>d.trim()).filter(d=>d);
-  if(drugs.length<2){showMsg('⚠️ أدخل دواءين على الأقل');return;}
+  if(diItems.length < 2){ showMsg('⚠️ أضف دواءين على الأقل'); return; }
+  const drugs = diItems;
 
   const wrap=document.getElementById('di-result');
   wrap.innerHTML='<div class="card" style="text-align:center;padding:24px"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="color:var(--text-muted)">جاري التحليل...</div></div>';
@@ -1746,7 +1807,7 @@ async function checkInteractions(){
           role:'user',
           content:`أنت صيدلاني متخصص. حلل التعارضات الدوائية بين هذه الأدوية:
 
-${drugs.map((d,i)=>(i+1)+'. '+d).join('\n')}
+${diItems.map((d,i)=>(i+1)+'. '+d).join('\n')}
 
 أجب بصيغة JSON فقط بدون أي نص إضافي:
 {
