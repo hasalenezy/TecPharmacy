@@ -409,6 +409,19 @@ td { padding:11px 14px; font-size:13px; }
       </div>
       <button class="btn-primary" onclick="addDrug()">➕ إضافة</button>
     </div>
+    <!-- Backup/Restore for custodian -->
+    <div id="custodian-tools" style="display:none;margin-bottom:12px;display:none">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-title">🛠️ أدوات البيانات</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="whBackup()">💾 نسخ احتياطي</button>
+          <label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+            📂 استعادة نسخة
+            <input type="file" accept=".json" style="display:none" onchange="whRestore(event)">
+          </label>
+        </div>
+      </div>
+    </div>
     <div class="controls">
       <input class="search-inp" type="text" id="inv-search" placeholder="🔍 ابحث..." oninput="renderInv()">
       <button class="fbtn active" onclick="setInvF('all',this)">الكل</button>
@@ -995,6 +1008,9 @@ function renderInv(){
   const q=(document.getElementById('inv-search')?.value||'').trim().toLowerCase();
   const isAdmin=CUD.role==='admin';
   const isCustodian=CUD.role==='custodian';
+  // Show backup/restore tools for custodian in inventory
+  const custTools=document.getElementById('custodian-tools');
+  if(custTools) custTools.style.display=isCustodian?'block':'none';
   const canAdd=isAdmin||isCustodian;
   const canEdit=isAdmin||isCustodian;
   const canDelete=isAdmin;
