@@ -432,6 +432,8 @@ td { padding:11px 14px; font-size:13px; }
       <button class="fbtn" onclick="setInvF('psycho',this)">🟣 نفسية</button>
       <button class="fbtn" onclick="exportExcel()">📥 Excel</button>
       <label class="fbtn" style="cursor:pointer">📤 استيراد<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)"></label>
+      <button class="fbtn" onclick="whBackup()" style="border-color:#7c3aed40;color:#a78bfa">💾 نسخ احتياطي</button>
+      <label class="fbtn" style="cursor:pointer;border-color:#f59e0b40;color:var(--warn)">📂 استعادة<input type="file" accept=".json" style="display:none" onchange="whRestore(event)"></label>
     </div>
     <div class="table-wrap">
       <table>
