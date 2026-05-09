@@ -561,6 +561,8 @@ td { padding:11px 14px; font-size:13px; }
         <input type="checkbox" id="p-export"> 📥 تصدير Excel</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-import"> 📤 استيراد Excel</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
+        <input type="checkbox" id="p-request"> 📝 طلب أدوية من المستودع</label>
     </div>
     <div class="modal-btns">
       <button class="btn-primary" onclick="addUser()">إضافة</button>
@@ -850,6 +852,7 @@ function buildTabs(){
     {id:'dispense',   label:'🔄 حركة الصرف',      roles:['pharmacy-in','pharmacy-out','warehouse'], perm:'dispense'},
     {id:'inventory',  label:'💊 الجرد',            roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'inventory'},
     {id:'wh-backup',  label:'💾 النسخ الاحتياطي', roles:['pharmacy-in','pharmacy-out','custodian'], perm:'backup'},
+    {id:'pharm-req',  label:'📝 طلب أدوية',         roles:['warehouse','custodian'], perm:'request'},
     {id:'inventory',  label:'💊 المخزون',            roles:['custodian'], perm:null},
   ];
 
@@ -1462,7 +1465,7 @@ function openAddUser(){
   ['um-name','um-empid','um-pass','um-dept'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('um-role').value='pharmacy-in';
   document.getElementById('um-err').style.display='none';
-  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import'].forEach(id=>document.getElementById(id).checked=false);
+  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('add-user-modal').classList.add('show');
 }
 
@@ -1483,6 +1486,7 @@ async function addUser(){
     restore:   document.getElementById('p-restore').checked,
     export:    document.getElementById('p-export').checked,
     import:    document.getElementById('p-import').checked,
+    request:   document.getElementById('p-request').checked,
   };
   try{
     const sec=firebase.initializeApp(FB_CONFIG,'sec'+Date.now());
@@ -1520,7 +1524,7 @@ async function loadUsers(){
           ${!isSelf?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
         </div>
         ${!isSelf&&u.perms?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${Object.entries({dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد'}).filter(([k])=>u.perms[k]).map(([,v])=>`<span class="badge badge-approved" style="font-size:11px">${v}</span>`).join('')}
+          ${Object.entries({dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد',request:'📝 طلب أدوية'}).filter(([k])=>u.perms[k]).map(([,v])=>`<span class="badge badge-approved" style="font-size:11px">${v}</span>`).join('')}
         </div>`:''}
         <div style="display:none"><!-- spacer --></div>
         </div>
