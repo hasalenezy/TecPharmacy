@@ -534,7 +534,7 @@ td { padding:11px 14px; font-size:13px; }
   <div class="card" id="wh-backup-preview" style="display:none">
     <div class="card-title">📋 معاينة النسخة الاحتياطية</div>
     <div id="wh-backup-info"></div>
-    <button class="btn-primary" id="restore-confirm-btn" style="display:none;margin-top:12px" onclick="confirmWhRestore()">✅ تأكيد الاستعادة</button>
+    <button class="btn-primary" id="restore-confirm-btn" style="display:none;margin-top:12px" onclick="window.confirmWhRestore()">✅ تأكيد الاستعادة</button>
     <button class="btn-secondary" style="margin-top:12px;margin-right:8px" onclick="document.getElementById('wh-backup-preview').style.display='none';document.getElementById('restore-confirm-btn').style.display='none'">إلغاء</button>
   </div>
 </div>
@@ -1700,10 +1700,10 @@ function whRestore(e){
 
 window.confirmWhRestore = async function(){
   const pending=window._pendingRestore;
-  if(!pending||!pending.length){showMsg('⚠️ لا توجد بيانات للاستعادة');return;}
+  if(!pending||!pending.length){showMsg('⚠️ لا توجد بيانات — أعد رفع الملف');return;}
   if(!fbDb){showMsg('⚠️ Firebase غير متصل');return;}
   
-  showMsg('⏳ جاري الاستعادة...');
+  showMsg('⏳ جاري الاستعادة ('+pending.length+' دواء)...');
   let added=0, skipped=0;
   
   for(const d of pending){
