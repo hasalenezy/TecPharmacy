@@ -507,6 +507,25 @@ td { padding:11px 14px; font-size:13px; }
     </div>
   </div>
 
+<!-- TAB: WAREHOUSE BACKUP -->
+<div class="tab-content" id="tab-wh-backup">
+  <div class="card">
+    <div class="card-title">💾 النسخ الاحتياطي واستعادة البيانات</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">يمكنك تصدير نسخة احتياطية من بيانات المخزون واستعادتها لاحقاً. ملاحظة: الاستعادة تضيف الأدوية فقط ولا تعدل الكميات الحالية.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-primary" onclick="whBackup()">💾 تصدير نسخة احتياطية</button>
+      <label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        📂 استعادة نسخة
+        <input type="file" accept=".json" style="display:none" onchange="whRestore(event)">
+      </label>
+    </div>
+  </div>
+  <div class="card" id="wh-backup-preview" style="display:none">
+    <div class="card-title">📋 معاينة النسخة الاحتياطية</div>
+    <div id="wh-backup-info"></div>
+  </div>
+</div>
+
 </div>
 
 <!-- Add User Modal -->
@@ -807,6 +826,7 @@ function buildTabs(){
     {id:'pharm-req',  label:'📝 طلب أدوية',       roles:['pharmacy-in','pharmacy-out']},
     {id:'wh-reqs',    label:'📦 الطلبات الواردة', roles:['admin','warehouse']},
     {id:'wh-inv',     label:'💊 أدوية المستودع',  roles:['warehouse']},
+    {id:'wh-backup',  label:'💾 النسخ الاحتياطي',  roles:['warehouse']},
   ];
 
   let first=true;
@@ -1379,6 +1399,90 @@ async function deleteUser(uid,name){
   showMsg('🗑️ تم الحذف');
   loadUsers();
 }
+
+// ═══ WAREHOUSE BACKUP / RESTORE ═══
+function whBackup(){
+  if(!drugs.length){showMsg('⚠️ لا توجد بيانات');return;}
+  const backup={
+    version:1,
+    exportedAt:new Date().toISOString(),
+    exportedBy:CUD?.name||'',
+    count:drugs.length,
+    drugs:drugs.map(d=>({
+      name:d.name||'',
+      type:d.type||'',
+      qty:d.qty||0,
+      exp:d.exp||'',
+      cat:d.cat||'regular',
+      note:d.note||''
+    }))
+  };
+  const json=JSON.stringify(backup,null,2);
+  const b64=btoa(unescape(encodeURIComponent(json)));
+  const a=document.createElement('a');
+  a.href='data:application/json;base64,'+b64;
+  a.download='TecPharmacy_نسخة_'+new Date().toLocaleDateString('ar-SA').replace(/\//g,'-')+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showMsg('✅ تم تصدير النسخة الاحتياطية ('+drugs.length+' دواء)');
+}
+
+function whRestore(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async function(ev){
+    try{
+      const backup=JSON.parse(ev.target.result);
+      if(!backup.drugs||!Array.isArray(backup.drugs)){showMsg('❌ ملف غير صحيح');return;}
+      
+      // Show preview first
+      const preview=document.getElementById('wh-backup-preview');
+      const info=document.getElementById('wh-backup-info');
+      preview.style.display='block';
+      info.innerHTML=`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+          <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${backup.count||backup.drugs.length}</div><div class="stat-lbl">عدد الأدوية</div></div>
+          <div class="stat-card"><div class="stat-num" style="font-size:14px;color:var(--accent)">${backup.exportedBy||'—'}</div><div class="stat-lbl">صدّرها</div></div>
+          <div class="stat-card"><div class="stat-num" style="font-size:12px;color:var(--text-muted)">${new Date(backup.exportedAt||'').toLocaleDateString('ar-SA')}</div><div class="stat-lbl">تاريخ النسخة</div></div>
+        </div>
+        <p style="font-size:12px;color:var(--warn);margin-bottom:14px">⚠️ ستُضاف الأدوية الجديدة فقط — لن تتغير الكميات الحالية أو تُحذف أي بيانات</p>
+        <button class="btn-primary" onclick="confirmWhRestore(${JSON.stringify(backup.drugs).split('').map(c=>c.charCodeAt(0)).join(',')})">تأكيد الاستعادة</button>`;
+      
+      // Store parsed data for confirm
+      window._pendingRestore=backup.drugs;
+      info.querySelector('button').onclick=confirmWhRestore;
+      
+      showMsg('✅ تم قراءة الملف — راجع المعاينة أدناه');
+    }catch(err){ showMsg('❌ خطأ في قراءة الملف'); }
+  };
+  reader.readAsText(file,'UTF-8');
+  e.target.value='';
+}
+
+async function confirmWhRestore(){
+  const pending=window._pendingRestore;
+  if(!pending||!pending.length){showMsg('⚠️ لا توجد بيانات للاستعادة');return;}
+  let added=0;
+  for(const d of pending){
+    if(!d.name) continue;
+    // Only add if drug doesn't exist (by name)
+    const exists=drugs.find(x=>(x.name||'').toLowerCase()===d.name.toLowerCase());
+    if(!exists){
+      const ref=await fbDb.collection('tp_drugs').add({
+        name:d.name, type:d.type||'أخرى', qty:d.qty||0,
+        exp:d.exp||'', cat:d.cat||'regular', note:d.note||'',
+        addedBy:CUD?.name||'', restoredAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      drugs.push({id:ref.id,...d});
+      added++;
+    }
+  }
+  await logActivity('📂 استعادة نسخة احتياطية',`تم إضافة ${added} دواء جديد`);
+  showMsg('✅ تم استعادة '+added+' دواء جديد');
+  document.getElementById('wh-backup-preview').style.display='none';
+  window._pendingRestore=null;
+  renderWhInv();
+}
+
 </script>
 </body>
 </html>
