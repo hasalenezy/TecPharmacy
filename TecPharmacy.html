@@ -428,9 +428,9 @@ td { padding:11px 14px; font-size:13px; }
       <button class="fbtn" onclick="setInvF('narcotic',this)">🔴 مخدرة</button>
       <button class="fbtn" onclick="setInvF('psycho',this)">🟣 نفسية</button>
       <button class="fbtn" onclick="exportExcel()">📥 Excel</button>
-      <button class="fbtn" onclick="document.getElementById('excel-import-input').click()">📤 استيراد</button>
+      <label class="fbtn" style="cursor:pointer">📤 استيراد<input type="file" accept=".xlsx,.xls" onchange="importExcel(event)" style="position:absolute;opacity:0;width:0;height:0"></label>
       <button class="fbtn" onclick="whBackup()" style="border-color:#7c3aed40;color:#a78bfa">💾 نسخ احتياطي</button>
-      <button class="fbtn" style="border-color:#f59e0b40;color:var(--warn)" onclick="document.getElementById('restore-input').click()">📂 استعادة</button>
+      <label class="fbtn" style="cursor:pointer;border-color:#f59e0b40;color:var(--warn)">📂 استعادة<input type="file" accept=".json" onchange="whRestore(event)" style="position:absolute;opacity:0;width:0;height:0"></label>
     </div>
     <div class="table-wrap">
       <table>
@@ -1744,8 +1744,6 @@ window.confirmWhRestore = async function(){
 }
 
 </script>
-<!-- Global file inputs for mobile compatibility -->
-<input type="file" id="restore-input" accept=".json" style="display:none" onchange="whRestore(event)">
-<input type="file" id="excel-import-input" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)">
+
 </body>
 </html>
