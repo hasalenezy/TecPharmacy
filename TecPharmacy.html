@@ -543,6 +543,54 @@ td { padding:11px 14px; font-size:13px; }
 
 </div>
 
+<!-- TAB: DOSE CALCULATOR -->
+<div class="tab-content" id="tab-dose-calc">
+  <div class="card">
+    <div class="card-title">💊 حاسبة جرعات الشراب</div>
+    <div class="form-grid form-2" style="margin-bottom:16px">
+      <div class="field">
+        <label>وزن المريض (كجم)</label>
+        <input type="number" id="dc-weight" placeholder="مثال: 20" min="1" max="200" oninput="calcDose()">
+      </div>
+      <div class="field">
+        <label>الجرعة (ملغ/كجم)</label>
+        <input type="number" id="dc-dpk" placeholder="مثال: 15" min="0.1" step="0.1" oninput="calcDose()">
+      </div>
+      <div class="field">
+        <label>تركيز الشراب (ملغ/مل)</label>
+        <input type="number" id="dc-conc" placeholder="مثال: 120" min="0.1" step="0.1" oninput="calcDose()">
+      </div>
+      <div class="field">
+        <label>عدد الجرعات يومياً</label>
+        <input type="number" id="dc-dpd" placeholder="مثال: 3" min="1" max="6" oninput="calcDose()">
+      </div>
+    </div>
+    <div id="dc-result" style="display:none">
+      <div class="stats-grid" style="margin-bottom:14px">
+        <div class="stat-card"><div class="stat-num" style="color:var(--accent2)" id="dc-total">—</div><div class="stat-lbl">الجرعة الكلية (ملغ)</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--accent)" id="dc-single">—</div><div class="stat-lbl">جرعة واحدة (مل)</div></div>
+        <div class="stat-card"><div class="stat-num" id="dc-daily">—</div><div class="stat-lbl">الجرعة اليومية (مل)</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--success)" id="dc-rx">—</div><div class="stat-lbl">الوصفة</div></div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:14px;font-size:14px;line-height:1.8" id="dc-summary"></div>
+    </div>
+    <div id="dc-empty" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">أدخل البيانات أعلاه لحساب الجرعة</div>
+  </div>
+</div>
+
+<!-- TAB: DRUG INTERACTIONS -->
+<div class="tab-content" id="tab-drug-inter">
+  <div class="card">
+    <div class="card-title">⚠️ كشف تعارض الأدوية</div>
+    <div class="field">
+      <label>أدخل قائمة أدوية المريض (دواء في كل سطر)</label>
+      <textarea id="di-drugs" placeholder="مثال:&#10;أموكسيسيلين 500mg&#10;إيبوبروفين 400mg&#10;وارفارين 5mg&#10;أوميبرازول 20mg" style="min-height:140px"></textarea>
+    </div>
+    <button class="btn-primary" onclick="checkInteractions()">🔍 كشف التعارضات</button>
+  </div>
+  <div id="di-result" style="margin-top:16px"></div>
+</div>
+
 <!-- Add User Modal -->
 <div class="modal-bg" id="add-user-modal">
   <div class="modal">
@@ -576,6 +624,10 @@ td { padding:11px 14px; font-size:13px; }
         <input type="checkbox" id="p-import"> 📤 استيراد Excel</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-request"> 📝 طلب أدوية من المستودع</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
+        <input type="checkbox" id="p-doseCalc"> 💊 حساب الجرعات</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
+        <input type="checkbox" id="p-drugInter"> ⚠️ تعارض الأدوية</label>
     </div>
     <div class="modal-btns">
       <button class="btn-primary" onclick="addUser()">إضافة</button>
@@ -864,6 +916,10 @@ function buildTabs(){
     {id:'dispense',   label:'🔄 حركة الصرف',      roles:['pharmacy-in','pharmacy-out','warehouse'], perm:'dispense'},
     {id:'inventory',  label:'💊 الجرد',            roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'inventory'},
     {id:'wh-backup',  label:'💾 النسخ الاحتياطي', roles:['pharmacy-in','pharmacy-out','custodian'], perm:'backup'},
+    {id:'dose-calc',  label:'💊 حساب الجرعات',      roles:['admin'], perm:null},
+    {id:'drug-inter', label:'⚠️ تعارض الأدوية',     roles:['admin'], perm:null},
+    {id:'dose-calc',  label:'💊 حساب الجرعات',      roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'doseCalc'},
+    {id:'drug-inter', label:'⚠️ تعارض الأدوية',     roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'drugInter'},
     {id:'pharm-req',  label:'📝 طلب أدوية',         roles:['warehouse','custodian'], perm:'request'},
     {id:'inventory',  label:'💊 المخزون',            roles:['custodian'], perm:null},
   ];
@@ -927,6 +983,8 @@ function buildUserToolsTab(p){
 
 function onTabSwitch(id){
   if(id==='dashboard')  loadDashboard();
+  if(id==='dose-calc')  {document.getElementById('dc-result').style.display='none';document.getElementById('dc-empty').style.display='block';}
+  if(id==='drug-inter') {document.getElementById('di-result').innerHTML='';}
   if(id==='wh-reqs')    loadWhReqs();
   if(id==='wh-inv')     renderWhInv();
   if(id==='pharm-req')  loadMyReqs();
@@ -1480,7 +1538,7 @@ function openAddUser(){
   ['um-name','um-empid','um-pass','um-dept'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('um-role').value='pharmacy-in';
   document.getElementById('um-err').style.display='none';
-  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request'].forEach(id=>document.getElementById(id).checked=false);
+  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request','p-doseCalc','p-drugInter'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('add-user-modal').classList.add('show');
 }
 
@@ -1502,6 +1560,8 @@ async function addUser(){
     export:    document.getElementById('p-export').checked,
     import:    document.getElementById('p-import').checked,
     request:   document.getElementById('p-request').checked,
+    doseCalc:  document.getElementById('p-doseCalc').checked,
+    drugInter: document.getElementById('p-drugInter').checked,
   };
   try{
     const sec=firebase.initializeApp(FB_CONFIG,'sec'+Date.now());
@@ -1539,7 +1599,7 @@ async function loadUsers(){
           ${!isSelf?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
         </div>
         ${!isSelf&&u.perms?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${Object.entries({dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد',request:'📝 طلب أدوية'}).filter(([k])=>u.perms[k]).map(([,v])=>`<span class="badge badge-approved" style="font-size:11px">${v}</span>`).join('')}
+          ${Object.entries({dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد',request:'📝 طلب أدوية',doseCalc:'💊 جرعات',drugInter:'⚠️ تعارض'}).filter(([k])=>u.perms[k]).map(([,v])=>`<span class="badge badge-approved" style="font-size:11px">${v}</span>`).join('')}
         </div>`:''}
         <div style="display:none"><!-- spacer --></div>
         </div>
@@ -1625,6 +1685,120 @@ function loadXLSX(cb){
   s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
   s.onload=cb; document.head.appendChild(s);
 }
+
+
+// ═══ DOSE CALCULATOR ═══
+function calcDose(){
+  const w=parseFloat(document.getElementById('dc-weight').value);
+  const dpk=parseFloat(document.getElementById('dc-dpk').value);
+  const conc=parseFloat(document.getElementById('dc-conc').value);
+  const dpd=parseFloat(document.getElementById('dc-dpd').value);
+
+  if(!w||!dpk||!conc||!dpd){
+    document.getElementById('dc-result').style.display='none';
+    document.getElementById('dc-empty').style.display='block';
+    return;
+  }
+
+  const totalMg = w * dpk;
+  const singleMl = totalMg / dpd / conc;
+  const dailyMl = totalMg / conc;
+
+  document.getElementById('dc-total').textContent = totalMg.toFixed(1);
+  document.getElementById('dc-single').textContent = singleMl.toFixed(1);
+  document.getElementById('dc-daily').textContent = dailyMl.toFixed(1);
+  document.getElementById('dc-rx').textContent = singleMl.toFixed(1)+' مل';
+  document.getElementById('dc-summary').innerHTML =
+    '<strong>الوصفة:</strong> أعطِ <strong style="color:var(--accent2)">'+singleMl.toFixed(1)+' مل</strong> '+
+    dpd+' مرة يومياً<br>'+
+    '<span style="color:var(--text-muted);font-size:12px">الجرعة الكلية: '+totalMg.toFixed(1)+' ملغ/يوم | '+dailyMl.toFixed(1)+' مل/يوم</span>';
+
+  document.getElementById('dc-result').style.display='block';
+  document.getElementById('dc-empty').style.display='none';
+}
+
+// ═══ DRUG INTERACTIONS (Claude AI) ═══
+async function checkInteractions(){
+  const txt=document.getElementById('di-drugs').value.trim();
+  if(!txt){showMsg('⚠️ أدخل قائمة الأدوية');return;}
+  
+  const drugs=txt.split('\n').map(d=>d.trim()).filter(d=>d);
+  if(drugs.length<2){showMsg('⚠️ أدخل دواءين على الأقل');return;}
+
+  const wrap=document.getElementById('di-result');
+  wrap.innerHTML='<div class="card" style="text-align:center;padding:24px"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="color:var(--text-muted)">جاري التحليل...</div></div>';
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{
+          role:'user',
+          content:`أنت صيدلاني متخصص. حلل التعارضات الدوائية بين هذه الأدوية:
+
+${drugs.map((d,i)=>(i+1)+'. '+d).join('\n')}
+
+أجب بصيغة JSON فقط بدون أي نص إضافي:
+{
+  "hasInteractions": true/false,
+  "interactions": [
+    {
+      "drug1": "اسم الدواء الأول",
+      "drug2": "اسم الدواء الثاني", 
+      "severity": "شديد/متوسط/خفيف",
+      "description": "وصف التعارض",
+      "recommendation": "التوصية"
+    }
+  ],
+  "summary": "ملخص عام"
+}`
+        }]
+      })
+    });
+
+    const data=await resp.json();
+    const txt2=data.content?.[0]?.text||'';
+    const clean=txt2.replace(/```json|```/g,'').trim();
+    const result=JSON.parse(clean);
+
+    if(!result.hasInteractions){
+      wrap.innerHTML=`<div class="card" style="border-right:4px solid var(--success)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:24px">✅</span>
+          <div style="font-weight:700;font-size:15px">لا توجد تعارضات معروفة</div>
+        </div>
+        <div style="font-size:13px;color:var(--text-muted)">${result.summary||''}</div>
+      </div>`;
+      return;
+    }
+
+    const sevColor={شديد:'var(--danger)',متوسط:'var(--warn)',خفيف:'var(--success)'};
+    const sevBg={شديد:'#ef444415',متوسط:'#f59e0b15',خفيف:'#10b98115'};
+
+    wrap.innerHTML=`
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">⚠️ وُجدت ${result.interactions.length} تعارض</div>
+        <div style="font-size:13px;color:var(--text-muted)">${result.summary||''}</div>
+      </div>
+      ${result.interactions.map(i=>`
+        <div class="card" style="border-right:4px solid ${sevColor[i.severity]||'var(--warn)'};background:${sevBg[i.severity]||'transparent'};margin-bottom:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-weight:700;font-size:14px">${i.drug1} + ${i.drug2}</div>
+            <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${sevColor[i.severity]||'var(--warn)'}20;color:${sevColor[i.severity]||'var(--warn)'}">${i.severity}</span>
+          </div>
+          <div style="font-size:13px;margin-bottom:8px">${i.description}</div>
+          <div style="font-size:12px;color:var(--accent);font-weight:600">💡 ${i.recommendation}</div>
+        </div>`).join('')}
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center">⚕️ هذا التحليل للاستئناس فقط — استشر الصيدلاني أو الطبيب المختص</div>`;
+
+  }catch(err){
+    wrap.innerHTML='<div class="card"><div style="color:var(--danger)">❌ تعذر التحليل — تحقق من الاتصال</div></div>';
+  }
+}
+
 
 // ═══ WAREHOUSE BACKUP / RESTORE ═══
 function whBackup(){
