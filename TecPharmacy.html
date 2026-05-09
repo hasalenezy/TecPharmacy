@@ -494,6 +494,8 @@ td { padding:11px 14px; font-size:13px; }
       <button class="fbtn" onclick="setWhInvF('ok',this)">✅ سليمة</button>
       <button class="fbtn" onclick="setWhInvF('warn',this)">⚠️ تنتهي</button>
       <button class="fbtn" onclick="setWhInvF('expired',this)">❌ منتهية</button>
+      <button class="fbtn" style="border-color:#7c3aed40;color:#a78bfa" onclick="whBackup()">💾 نسخ احتياطي</button>
+      <label class="fbtn" style="cursor:pointer;border-color:#f59e0b40;color:var(--warn)">📂 استعادة<input type="file" accept=".json" onchange="whRestore(event)" style="position:absolute;opacity:0;width:0;height:0"></label>
     </div>
     <div class="table-wrap">
       <table>
@@ -858,7 +860,6 @@ function buildTabs(){
     {id:'pharm-req',  label:'📝 طلب أدوية',       roles:['pharmacy-in','pharmacy-out']},
     {id:'wh-reqs',    label:'📦 الطلبات الواردة', roles:['admin','warehouse']},
     {id:'wh-inv',     label:'💊 أدوية المستودع',  roles:['warehouse']},
-    {id:'wh-backup',  label:'💾 النسخ الاحتياطي', roles:['warehouse']},
     // Extra tabs from permissions (for non-admin roles)
     {id:'dispense',   label:'🔄 حركة الصرف',      roles:['pharmacy-in','pharmacy-out','warehouse'], perm:'dispense'},
     {id:'inventory',  label:'💊 الجرد',            roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'inventory'},
