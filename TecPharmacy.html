@@ -1363,25 +1363,85 @@ async function loadDashboard(){
   document.getElementById('st-drugs').textContent=drugs.length;
   document.getElementById('st-units').textContent=drugs.reduce((s,d)=>s+(d.qty||0),0);
   document.getElementById('st-expired').textContent=drugs.filter(d=>daysLeft(d.exp)<0).length;
-
   if(!fbDb) return;
-  const rSnap=await fbDb.collection('tp_requests').get().catch(()=>({docs:[]}));
-  document.getElementById('st-pending').textContent=rSnap.docs.filter(d=>d.data().status==='pending').length;
 
-  const aSnap=await fbDb.collection('tp_activity').orderBy('createdAt','desc').limit(30).get().catch(()=>({docs:[]}));
-  const wrap=document.getElementById('dash-activity');
-  if(aSnap.docs.length===0){wrap.innerHTML='<div class="empty"><div class="icon">📋</div><p>لا توجد عمليات بعد</p></div>';return;}
-  wrap.innerHTML=aSnap.docs.map(d=>{
+  // Get requests
+  const rSnap=await fbDb.collection('tp_requests').get().catch(()=>({docs:[]}));
+  const allReqs=rSnap.docs.map(d=>({id:d.id,...d.data()}));
+  document.getElementById('st-pending').textContent=allReqs.filter(r=>r.status==='pending').length;
+
+  // Get activity log
+  const aSnap=await fbDb.collection('tp_activity').orderBy('createdAt','desc').limit(50).get().catch(()=>({docs:[]}));
+
+  // Build combined activity list
+  const activities=[];
+
+  // From tp_requests — show full details
+  allReqs.forEach(r=>{
+    const stL={pending:'⏳ معلق',approved:'✅ موافق',rejected:'❌ مرفوض',delivered:'📦 مُسلَّم'};
+    const stC={pending:'var(--warn)',approved:'var(--success)',rejected:'var(--danger)',delivered:'var(--accent2)'};
+    activities.push({
+      time: r.createdAt?.seconds||0,
+      type: 'request',
+      title: `📝 طلب أدوية`,
+      user: r.fromName||'',
+      dept: r.fromDept||'',
+      items: r.items||[],
+      note: r.note||'',
+      warehouseNote: r.warehouseNote||'',
+      updatedBy: r.updatedBy||'',
+      status: r.status,
+      statusLabel: stL[r.status]||r.status,
+      statusColor: stC[r.status]||'var(--warn)',
+    });
+  });
+
+  // From tp_activity — dispense and other ops
+  aSnap.docs.forEach(d=>{
     const a=d.data();
-    const dt=a.createdAt?new Date(a.createdAt.seconds*1000).toLocaleString('ar-SA'):'';
-    return `<div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-      <div>
-        <div style="font-weight:700;font-size:13px">${a.action||''}</div>
-        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
-          ${a.by?`<span style="font-size:11px;color:var(--accent)">👤 ${a.by}</span>`:''}
-          ${a.details?`<span style="font-size:11px;color:var(--text-muted)">• ${a.details}</span>`:''}
-          <span style="font-size:11px;color:var(--text-muted)">${dt}</span>
+    activities.push({
+      time: a.createdAt?.seconds||0,
+      type: 'activity',
+      title: a.action||'',
+      user: a.by||'',
+      dept: '',
+      note: a.details||'',
+      items: [],
+      status: '',
+    });
+  });
+
+  // Sort by time desc
+  activities.sort((a,b)=>b.time-a.time);
+
+  const wrap=document.getElementById('dash-activity');
+  if(!activities.length){wrap.innerHTML='<div class="empty"><div class="icon">📋</div><p>لا توجد عمليات بعد</p></div>';return;}
+
+  wrap.innerHTML=activities.map(a=>{
+    const dt=a.time?new Date(a.time*1000).toLocaleString('ar-SA'):'';
+    const itemsList=a.items.length?`
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
+        ${a.items.map(i=>`<span style="font-size:11px;background:var(--surface2);padding:3px 10px;border-radius:20px;font-weight:600">${i.drug} <span style="color:var(--accent2)">(${i.qty})</span></span>`).join('')}
+      </div>`:'';
+    const noteRow=a.note?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px">📝 ${a.note}</div>`:'';
+    const whNote=a.warehouseNote?`<div style="font-size:12px;color:var(--warn);margin-top:4px">🏭 رد المستودع: ${a.warehouseNote}</div>`:'';
+    const updatedBy=a.updatedBy?`<span style="font-size:11px;color:var(--text-muted)">• ${a.type==='request'&&a.status==='approved'?'وافق':'رفض'}: ${a.updatedBy}</span>`:'';
+    const statusBadge=a.status?`<span class="badge" style="background:${a.statusColor}18;color:${a.statusColor};white-space:nowrap">${a.statusLabel}</span>`:'';
+
+    return `<div style="padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${a.title}</div>
+          <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">
+            ${a.user?`<span style="font-size:11px;font-weight:700;color:var(--accent)">👤 ${a.user}${a.dept?' ('+a.dept+')':''}</span>`:''}
+            ${updatedBy}
+            <span style="font-size:11px;color:var(--text-muted)">${dt}</span>
+          </div>
+          ${itemsList}
+          ${noteRow}
+          ${whNote}
         </div>
+        ${statusBadge}
       </div>
     </div>`;
   }).join('');
