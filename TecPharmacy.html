@@ -1704,7 +1704,7 @@ function whRestore(e){
   e.target.value='';
 }
 
-async function confirmWhRestore(){
+window.confirmWhRestore = async function(){
   const pending=window._pendingRestore;
   if(!pending||!pending.length){showMsg('⚠️ لا توجد بيانات للاستعادة');return;}
   if(!fbDb){showMsg('⚠️ Firebase غير متصل');return;}
