@@ -573,6 +573,45 @@ td { padding:11px 14px; font-size:13px; }
 
 </div>
 
+<!-- TAB: ACTIVITY LOG -->
+<div class="tab-content" id="tab-activity">
+  <div class="controls" style="margin-bottom:14px">
+    <input class="search-inp" type="text" id="act-search" placeholder="🔍 ابحث بالاسم أو العملية..." oninput="filterActivity()">
+    <select id="act-filter" onchange="filterActivity()" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
+      <option value="all">كل العمليات</option>
+      <option value="إضافة دواء">➕ إضافة أدوية</option>
+      <option value="حذف دواء">🗑️ حذف أدوية</option>
+      <option value="تعديل دواء">✏️ تعديل أدوية</option>
+      <option value="صرف">🔄 حركة الصرف</option>
+      <option value="طلب">📝 طلبات الأدوية</option>
+      <option value="موافقة">✅ موافقة على طلب</option>
+      <option value="رفض">❌ رفض طلب</option>
+      <option value="استعادة">📂 استعادة نسخة</option>
+    </select>
+  </div>
+  <div id="activity-log-wrap">
+    <div class="empty"><div class="icon">📋</div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<!-- TAB: MONTHLY REPORT -->
+<div class="tab-content" id="tab-monthly-rpt">
+  <div class="card">
+    <div class="card-title">📊 التقرير الشهري</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="margin:0">
+        <label>الشهر</label>
+        <input type="month" id="rpt-month" style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
+      </div>
+      <button class="btn-primary" onclick="loadMonthlyReport()">عرض التقرير</button>
+      <button class="btn-secondary" id="rpt-export-btn" style="display:none" onclick="exportMonthlyReport()">📥 تصدير Excel</button>
+    </div>
+  </div>
+  <div id="monthly-rpt-wrap" style="margin-top:16px">
+    <div class="empty"><div class="icon">📊</div><p>اختر الشهر وانقر "عرض التقرير"</p></div>
+  </div>
+</div>
+
 <!-- TAB: DOSE CALCULATOR -->
 <div class="tab-content" id="tab-dose-calc">
   <div class="card">
@@ -1045,7 +1084,9 @@ function buildTabs(){
     {id:'dispense',   label:'🔄 حركة الصرف',      roles:['pharmacy-in','pharmacy-out','warehouse'], perm:'dispense'},
     {id:'inventory',  label:'💊 الجرد',            roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'inventory'},
     {id:'wh-backup',  label:'💾 النسخ الاحتياطي', roles:['pharmacy-in','pharmacy-out','custodian'], perm:'backup'},
-    {id:'dose-calc',  label:'💊 حساب الجرعات',      roles:['admin'], perm:null},
+    {id:'activity',   label:'📋 سجل العمليات',      roles:['admin'], perm:null},
+    {id:'monthly-rpt', label:'📊 التقرير الشهري',    roles:['admin'], perm:null},
+    {id:'dose-calc',   label:'💊 حساب الجرعات',      roles:['admin'], perm:null},
     {id:'drug-inter', label:'⚠️ تعارض الأدوية',     roles:['admin'], perm:null},
     {id:'dose-calc',  label:'💊 حساب الجرعات',      roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'doseCalc'},
     {id:'drug-inter', label:'⚠️ تعارض الأدوية',     roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'drugInter'},
@@ -1112,6 +1153,8 @@ function buildUserToolsTab(p){
 
 function onTabSwitch(id){
   if(id==='dashboard')  loadDashboard();
+  if(id==='activity')   loadActivityLog();
+  if(id==='monthly-rpt'){ const n=new Date(); if(!document.getElementById('rpt-month').value) document.getElementById('rpt-month').value=n.toISOString().slice(0,7); }
   if(id==='dose-calc')  {document.getElementById('dc-result').style.display='none';document.getElementById('dc-empty').style.display='block';}
   if(id==='drug-inter') {document.getElementById('di-result').innerHTML='';}
   if(id==='wh-reqs')    loadWhReqs();
@@ -1832,6 +1875,219 @@ function loadXLSX(cb){
   s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
   s.onload=cb; document.head.appendChild(s);
 }
+
+
+
+// ═══ ACTIVITY LOG ═══
+let allActivityData = [];
+
+async function loadActivityLog() {
+  const wrap = document.getElementById('activity-log-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="icon">⏳</div><p>جاري التحميل...</p></div>';
+  if(!fbDb) return;
+
+  // Get from tp_activity
+  const aSnap = await fbDb.collection('tp_activity').orderBy('createdAt','desc').limit(200).get().catch(()=>({docs:[]}));
+  
+  // Get from tp_requests
+  const rSnap = await fbDb.collection('tp_requests').get().catch(()=>({docs:[]}));
+
+  allActivityData = [];
+
+  // Activity logs
+  aSnap.docs.forEach(d=>{
+    const a = d.data();
+    allActivityData.push({
+      time: a.createdAt?.seconds||0,
+      action: a.action||'',
+      details: a.details||'',
+      by: a.by||'',
+      byRole: a.byRole||'',
+      type: 'activity'
+    });
+  });
+
+  // Requests as activities
+  rSnap.docs.forEach(d=>{
+    const r = d.data();
+    const stL = {pending:'📝 طلب أدوية',approved:'✅ موافقة على طلب',rejected:'❌ رفض طلب',delivered:'📦 تسليم طلب'};
+    allActivityData.push({
+      time: r.createdAt?.seconds||0,
+      action: stL[r.status]||'📝 طلب أدوية',
+      details: `${r.items?.length||0} صنف — ${(r.items||[]).map(i=>i.drug+' ('+i.qty+')').join('، ')}${r.note?' | ملاحظة: '+r.note:''}${r.warehouseNote?' | رد المستودع: '+r.warehouseNote:''}`,
+      by: r.fromName||'',
+      byRole: r.fromRole||'',
+      updatedBy: r.updatedBy||'',
+      status: r.status,
+      type: 'request'
+    });
+    // If approved/rejected - add separate entry for warehouse action
+    if(r.updatedBy && r.status !== 'pending') {
+      allActivityData.push({
+        time: r.updatedAt?.seconds||r.createdAt?.seconds||0,
+        action: r.status==='approved'?'✅ موافقة على طلب':'❌ رفض طلب',
+        details: `طلب من ${r.fromName} — ${r.items?.length||0} صنف${r.warehouseNote?' | ملاحظة: '+r.warehouseNote:''}`,
+        by: r.updatedBy||'',
+        byRole: 'warehouse',
+        type: 'warehouse-action'
+      });
+    }
+  });
+
+  // Sort by time
+  allActivityData.sort((a,b)=>b.time-a.time);
+  renderActivityLog(allActivityData);
+}
+
+function renderActivityLog(data) {
+  const wrap = document.getElementById('activity-log-wrap');
+  if(!data.length) { wrap.innerHTML='<div class="empty"><div class="icon">📋</div><p>لا توجد عمليات</p></div>'; return; }
+
+  const roleLabels = {admin:'👑 أدمن','pharmacy-in':'🏥 داخلية','pharmacy-out':'🏪 خارجية',warehouse:'🏭 مستودع',custodian:'🔑 أمين عهدة'};
+  const actionColors = {
+    'إضافة':'var(--success)', 'حذف':'var(--danger)', 'تعديل':'var(--warn)',
+    'صرف':'var(--accent2)', 'طلب':'var(--accent)', 'موافقة':'var(--success)',
+    'رفض':'var(--danger)', 'استعادة':'#a78bfa', 'تسليم':'var(--accent2)'
+  };
+
+  wrap.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;">
+    ${data.map((a,i)=>{
+      const dt = a.time ? new Date(a.time*1000).toLocaleString('ar-SA') : '';
+      const colorKey = Object.keys(actionColors).find(k=>a.action.includes(k));
+      const color = colorKey ? actionColors[colorKey] : 'var(--text-muted)';
+      return `<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px">
+        <div style="width:4px;min-height:40px;background:${color};border-radius:4px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:13px">${a.action}</div>
+            <span style="font-size:11px;color:var(--text-muted)">${dt}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:600;color:var(--accent)">👤 ${a.by||'—'}</span>
+            <span style="font-size:11px;color:var(--text-muted)">${roleLabels[a.byRole]||a.byRole||''}</span>
+          </div>
+          ${a.details?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.6">${a.details}</div>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="text-align:center;padding:10px;font-size:11px;color:var(--text-muted)">إجمالي ${data.length} عملية</div>`;
+}
+
+window.filterActivity = function() {
+  const q = (document.getElementById('act-search')?.value||'').trim().toLowerCase();
+  const f = document.getElementById('act-filter')?.value||'all';
+  let filtered = allActivityData.filter(a=>{
+    const matchQ = !q || a.action.includes(q) || a.by.toLowerCase().includes(q) || a.details.toLowerCase().includes(q);
+    const matchF = f==='all' || a.action.includes(f);
+    return matchQ && matchF;
+  });
+  renderActivityLog(filtered);
+};
+
+// ═══ MONTHLY REPORT ═══
+let monthlyReportData = [];
+
+window.loadMonthlyReport = async function() {
+  const month = document.getElementById('rpt-month').value;
+  if(!month) { showMsg('⚠️ اختر الشهر'); return; }
+  const [yr,mn] = month.split('-').map(Number);
+  const wrap = document.getElementById('monthly-rpt-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="icon">⏳</div><p>جاري التحميل...</p></div>';
+
+  if(!fbDb) return;
+
+  // Get dispenses from tp_dispenses
+  const dSnap = await fbDb.collection('tp_dispenses').get().catch(()=>({docs:[]}));
+  // Get approved requests from tp_requests
+  const rSnap = await fbDb.collection('tp_requests').where('status','==','approved').get().catch(()=>({docs:[]}));
+
+  const grouped = {};
+
+  // From dispenses
+  dSnap.docs.forEach(d=>{
+    const e = d.data();
+    if(!e.createdAt) return;
+    const dt = new Date(e.createdAt.seconds*1000);
+    if(dt.getFullYear()!==yr||(dt.getMonth()+1)!==mn) return;
+    if(e.type!=='out') return;
+    const key = e.drugName||'';
+    if(!key) return;
+    if(!grouped[key]) grouped[key]={name:key,total:0,ops:0,users:new Set()};
+    grouped[key].total += e.qty||0;
+    grouped[key].ops++;
+    if(e.by) grouped[key].users.add(e.by);
+  });
+
+  // From approved requests
+  rSnap.docs.forEach(d=>{
+    const r = d.data();
+    if(!r.createdAt) return;
+    const dt = new Date(r.createdAt.seconds*1000);
+    if(dt.getFullYear()!==yr||(dt.getMonth()+1)!==mn) return;
+    (r.items||[]).forEach(item=>{
+      const key = item.drug||'';
+      if(!key) return;
+      if(!grouped[key]) grouped[key]={name:key,total:0,ops:0,users:new Set()};
+      grouped[key].total += item.qty||0;
+      grouped[key].ops++;
+      if(r.fromName) grouped[key].users.add(r.fromName);
+    });
+  });
+
+  monthlyReportData = Object.values(grouped).sort((a,b)=>b.total-a.total);
+  monthlyReportData.forEach(r=>r.users=[...r.users]);
+
+  if(!monthlyReportData.length) {
+    wrap.innerHTML='<div class="empty"><div class="icon">📊</div><p>لا توجد بيانات لهذا الشهر</p></div>';
+    document.getElementById('rpt-export-btn').style.display='none';
+    return;
+  }
+
+  const totalQty = monthlyReportData.reduce((s,r)=>s+r.total,0);
+  wrap.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-num" style="color:var(--danger)">${totalQty}</div><div class="stat-lbl">إجمالي الوحدات المسحوبة</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${monthlyReportData.length}</div><div class="stat-lbl">أصناف مختلفة</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--success)">${monthlyReportData.reduce((s,r)=>s+r.ops,0)}</div><div class="stat-lbl">عدد العمليات</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent);font-size:18px">${monthlyReportData[0]?.name?.slice(0,15)||'—'}</div><div class="stat-lbl">أكثر دواء سحباً</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>اسم الدواء</th><th>الكمية المسحوبة</th><th>عدد العمليات</th><th>المستخدمون</th></tr></thead>
+        <tbody>
+          ${monthlyReportData.map((r,i)=>`<tr>
+            <td style="color:var(--text-muted);font-size:11px">${i+1}</td>
+            <td style="font-weight:700">${r.name}</td>
+            <td><span style="background:#ef444415;color:var(--danger);padding:3px 12px;border-radius:20px;font-weight:700">📦 ${r.total}</span></td>
+            <td style="color:var(--text-muted)">${r.ops}</td>
+            <td style="font-size:11px;color:var(--text-muted)">${r.users.join('، ')||'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  document.getElementById('rpt-export-btn').style.display='inline-block';
+};
+
+window.exportMonthlyReport = function() {
+  if(!monthlyReportData.length) { showMsg('⚠️ لا توجد بيانات'); return; }
+  if(typeof XLSX==='undefined') { loadXLSX(exportMonthlyReport); return; }
+  const month = document.getElementById('rpt-month').value;
+  const rows = [['#','اسم الدواء','الكمية المسحوبة','عدد العمليات','المستخدمون']];
+  monthlyReportData.forEach((r,i)=>rows.push([i+1,r.name,r.total,r.ops,r.users.join('، ')]));
+  rows.push([]);
+  rows.push(['الإجمالي','',monthlyReportData.reduce((s,r)=>s+r.total,0),'','']);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:30},{wch:16},{wch:14},{wch:30}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'التقرير الشهري');
+  const wbout=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+  const a=document.createElement('a');
+  a.href='data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+wbout;
+  a.download='تقرير_'+month+'.xlsx';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  showMsg('✅ تم تصدير التقرير');
+};
 
 
 // ═══ DOSE CALCULATOR ═══
