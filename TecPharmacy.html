@@ -316,7 +316,8 @@ td { padding:11px 14px; font-size:13px; }
       <label>كلمة المرور</label>
       <input class="login-input" type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <button class="login-btn" id="login-btn" onclick="doLogin()">دخول</button>
+    <div id="login-loading" style="text-align:center;padding:8px;font-size:13px;color:#64748b;margin-bottom:6px">⏳ جاري تحميل النظام...</div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()" disabled style="opacity:0.6;cursor:not-allowed">دخول</button>
     <div class="login-err" id="login-err"></div>
     <div class="login-footer">© 2026 PharmaTec — جميع الحقوق محفوظة</div>
   </div>
@@ -959,6 +960,12 @@ window.addEventListener('load',function(){
   fbAuth=firebase.auth();
   fbDb=firebase.firestore();
 
+  // Enable login button when Firebase is ready
+  document.getElementById('login-btn').disabled = false;
+  document.getElementById('login-btn').style.opacity = '1';
+  document.getElementById('login-btn').style.cursor = 'pointer';
+  document.getElementById('login-loading').style.display = 'none';
+
   fbAuth.onAuthStateChanged(async user=>{
     if(user){
       CU=user;
@@ -1265,24 +1272,6 @@ async function addDrug(){
   const note=document.getElementById('inp-note').value.trim();
   if(!name){showMsg('⚠️ أدخل اسم الدواء');return;}
   if(!exp){showMsg('⚠️ أدخل تاريخ الانتهاء');return;}
-  // ── فحص التكرار: اسم + شكل ──
-  const duplicate = drugs.find(d=>
-    (d.name||'').toLowerCase().trim()===name.toLowerCase().trim() &&
-    (d.type||'').trim()===type.trim()
-  );
-  if(duplicate){
-    showMsg('⚠️ موجود مسبقاً: '+duplicate.name+' — '+duplicate.type);
-    return;
-  }
-  // ── فحص التكرار: اسم + نوع (شكل) ──
-  const duplicate = drugs.find(d =>
-    (d.name||'').toLowerCase().trim() === name.toLowerCase().trim() &&
-    (d.type||'').trim() === type.trim()
-  );
-  if(duplicate){
-    showMsg(`⚠️ الدواء موجود مسبقاً: ${duplicate.name} — ${duplicate.type}`);
-    return;
-  }
   const drug={name,type,qty,exp,cat,group,note};
   await saveDrug(drug);
   drugs.push(drug);
