@@ -638,6 +638,28 @@ td { padding:11px 14px; font-size:13px; }
   <div id="di-result" style="margin-top:16px"></div>
 </div>
 
+<!-- Edit User Modal -->
+<div class="modal-bg" id="edit-user-modal">
+  <div class="modal">
+    <h3>✏️ تعديل بيانات المستخدم</h3>
+    <input type="hidden" id="eu-uid">
+    <input type="hidden" id="eu-docid">
+    <div class="field">
+      <label>الاسم الجديد</label>
+      <input type="text" id="eu-name" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
+    </div>
+    <div class="field">
+      <label>كلمة المرور الجديدة <span style="color:var(--text-muted);font-size:11px">(اتركها فارغة إذا لا تريد تغييرها)</span></label>
+      <input type="password" id="eu-pass" placeholder="••••••••" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="saveEditUser()">حفظ التعديلات</button>
+      <button class="btn-secondary" onclick="closeModal('edit-user-modal')">إلغاء</button>
+    </div>
+    <div class="modal-err" id="eu-err"></div>
+  </div>
+</div>
+
 <!-- Add User Modal -->
 <div class="modal-bg" id="add-user-modal">
   <div class="modal">
@@ -1015,8 +1037,6 @@ function onLogin(){
   loadDrugsFromFirebase().then(()=>{
     renderInv(); updateDispSel();
   });
-  setupNotifications();
-  setTimeout(setupNotifListeners, 2000);
 }
 
 function onLogout(){
@@ -1745,6 +1765,7 @@ async function loadUsers(){
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="badge badge-approved">${roles[u.role]||u.role}</span>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:11px" onclick="openEditUser('${u.uid}','${u.name}','${d.id}')">✏️ تعديل</button>
           ${!isSelf?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
         </div>
         ${!isSelf&&u.perms?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
@@ -1837,165 +1858,81 @@ function loadXLSX(cb){
 
 
 
-// ═══ NOTIFICATIONS SYSTEM ═══
-let notifListeners = [];
+// ═══ EDIT USER ═══
+window.openEditUser = function(uid, name, docId){
+  document.getElementById('eu-uid').value = uid;
+  document.getElementById('eu-docid').value = docId;
+  document.getElementById('eu-name').value = name;
+  document.getElementById('eu-pass').value = '';
+  document.getElementById('eu-err').style.display = 'none';
+  document.getElementById('edit-user-modal').classList.add('show');
+};
 
-function playNotifSound(urgent=false){
+window.saveEditUser = async function(){
+  const uid   = document.getElementById('eu-uid').value;
+  const docId = document.getElementById('eu-docid').value;
+  const name  = document.getElementById('eu-name').value.trim();
+  const pass  = document.getElementById('eu-pass').value;
+  const err   = document.getElementById('eu-err');
+  err.style.display = 'none';
+
+  if(!name){ err.textContent='أدخل الاسم'; err.style.display='block'; return; }
+
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    if(urgent){
-      // صوت طارئ - 3 نبضات سريعة
-      [0, 0.2, 0.4].forEach(t=>{
-        const o=ctx.createOscillator(); const g=ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value=880; o.type='sine';
-        g.gain.setValueAtTime(0.3, ctx.currentTime+t);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+t+0.15);
-        o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+0.15);
-      });
-    } else {
-      // صوت عادي - نبضتين
-      [0, 0.3].forEach(t=>{
-        const o=ctx.createOscillator(); const g=ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value=520; o.type='sine';
-        g.gain.setValueAtTime(0.2, ctx.currentTime+t);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+t+0.25);
-        o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+0.25);
-      });
+    // Update name in Firestore
+    await fbDb.collection('tp_users').doc(docId).update({name});
+
+    // Update password if provided
+    if(pass){
+      if(pass.length < 6){ err.textContent='كلمة المرور يجب أن تكون 6 أحرف على الأقل'; err.style.display='block'; return; }
+      // Get user email from Firestore
+      const snap = await fbDb.collection('tp_users').doc(docId).get();
+      const userData = snap.data();
+      const email = userData.email || (userData.empId + '@pharma.inv');
+
+      // Use secondary app to update password
+      const sec = firebase.initializeApp(FB_CONFIG, 'edit'+Date.now());
+      const secAuth = sec.auth();
+      try{
+        const cred = await secAuth.signInWithEmailAndPassword(email, pass);
+        // Can't update other user's password from client without re-auth
+        // For admin updating own password
+        if(uid === CU.uid){
+          await fbAuth.currentUser.updatePassword(pass);
+        }
+        await secAuth.signOut();
+      } catch(e2){
+        // Password update for other users requires Admin SDK (server-side)
+        // Show helpful message
+        err.textContent = 'تم تحديث الاسم ✅ — لتغيير كلمة المرور يجب حذف المستخدم وإعادة إضافته';
+        err.style.display = 'block';
+        err.style.background = '#0099ff15';
+        err.style.color = 'var(--accent2)';
+        err.style.borderColor = '#0099ff40';
+        // Still save the name
+        if(uid === CU.uid){
+          CUD.name = name;
+          document.getElementById('app-sub').textContent = name + ' — ' + (CUD.dept||'');
+        }
+        loadUsers();
+        return;
+      }
     }
-  } catch(e){}
-}
 
-function showNotif(title, body, urgent=false){
-  // 1. Toast داخل التطبيق
-  showMsg((urgent?'🚨 ':'🔔 ') + body);
-  // 2. صوت
-  playNotifSound(urgent);
-  // 3. إشعار المتصفح
-  if(Notification.permission==='granted'){
-    new Notification(title, {
-      body, icon:'💊',
-      badge:'💊',
-      tag: 'tecpharma-notif'
-    });
+    // Update local data if editing self
+    if(uid === CU.uid){
+      CUD.name = name;
+      document.getElementById('app-sub').textContent = name + ' — ' + (CUD.dept||'');
+    }
+
+    showMsg('✅ تم تحديث البيانات');
+    closeModal('edit-user-modal');
+    loadUsers();
+  } catch(e){
+    err.textContent = 'خطأ: ' + e.message;
+    err.style.display = 'block';
   }
-}
-
-async function setupNotifications(){
-  if(!('Notification' in window)) return;
-  if(Notification.permission==='default'){
-    await Notification.requestPermission();
-  }
-}
-
-function setupNotifListeners(){
-  if(!fbDb||!CU||!CUD) return;
-  const role = CUD.role;
-
-  // Clear old listeners
-  notifListeners.forEach(u=>u());
-  notifListeners=[];
-
-  // ── مستودع: يستقبل إشعار لما يجي طلب جديد من الصيدلية ──
-  if(role==='warehouse'||role==='admin'){
-    let firstLoad = true;
-    const u1 = fbDb.collection('tp_requests')
-      .where('status','==','pending')
-      .onSnapshot(snap=>{
-        if(firstLoad){firstLoad=false;return;}
-        snap.docChanges().forEach(change=>{
-          if(change.type==='added'){
-            const r = change.doc.data();
-            showNotif(
-              'TecPharmacy — طلب جديد من المستودع',
-              `📝 ${r.fromName||'مشرف صيدلية'} طلب ${r.items?.length||0} صنف`,
-              false
-            );
-          }
-        });
-      });
-    notifListeners.push(u1);
-  }
-
-  // ── أمين العهدة: يستقبل إشعار لما يجي طلب جديد ──
-  if(role==='custodian'||role==='admin'){
-    let firstLoad2 = true;
-    const u2 = fbDb.collection('tp_cust_requests')
-      .where('status','==','pending')
-      .onSnapshot(snap=>{
-        if(firstLoad2){firstLoad2=false;return;}
-        snap.docChanges().forEach(change=>{
-          if(change.type==='added'){
-            const r = change.doc.data();
-            showNotif(
-              'TecPharmacy — طلب جديد من العهدة',
-              `🔑 ${r.fromName||'مشرف صيدلية'} طلب ${r.items?.length||0} صنف`,
-              false
-            );
-          }
-        });
-      });
-    notifListeners.push(u2);
-  }
-
-  // ── مشرف الصيدلية: يستقبل إشعار لما يتم الرد على طلبه (موافقة أو رفض) ──
-  if(role==='pharmacy-in'||role==='pharmacy-out'||role==='admin'){
-    let firstLoad3 = true;
-    const u3 = fbDb.collection('tp_requests')
-      .where('fromUid','==',CU.uid)
-      .onSnapshot(snap=>{
-        if(firstLoad3){firstLoad3=false;return;}
-        snap.docChanges().forEach(change=>{
-          if(change.type==='modified'){
-            const r = change.doc.data();
-            if(r.status==='approved'){
-              showNotif('TecPharmacy — موافقة على الطلب','✅ تمت الموافقة على طلبك من المستودع',false);
-            } else if(r.status==='rejected'){
-              showNotif('TecPharmacy — رفض الطلب','❌ تم رفض طلبك من المستودع',false);
-            }
-          }
-        });
-      });
-    notifListeners.push(u3);
-
-    // إشعار رد أمين العهدة
-    let firstLoad4 = true;
-    const u4 = fbDb.collection('tp_cust_requests')
-      .where('fromUid','==',CU.uid)
-      .onSnapshot(snap=>{
-        if(firstLoad4){firstLoad4=false;return;}
-        snap.docChanges().forEach(change=>{
-          if(change.type==='modified'){
-            const r = change.doc.data();
-            if(r.status==='approved'){
-              showNotif('TecPharmacy — موافقة العهدة','✅ وافق أمين العهدة على طلبك',false);
-            } else if(r.status==='rejected'){
-              showNotif('TecPharmacy — رفض العهدة','❌ رفض أمين العهدة طلبك',false);
-            }
-          }
-        });
-      });
-    notifListeners.push(u4);
-  }
-
-  // ── أدمن: يستقبل كل الإشعارات ──
-  if(role==='admin'){
-    let firstLoad5 = true;
-    const u5 = fbDb.collection('tp_activity')
-      .orderBy('createdAt','desc').limit(1)
-      .onSnapshot(snap=>{
-        if(firstLoad5){firstLoad5=false;return;}
-        snap.docChanges().forEach(change=>{
-          if(change.type==='added'){
-            const a = change.doc.data();
-            showNotif('TecPharmacy — عملية جديدة', `${a.action} — ${a.by||''}`, false);
-          }
-        });
-      });
-    notifListeners.push(u5);
-  }
-}
+};
 
 
 // ═══ DOSE CALCULATOR ═══
