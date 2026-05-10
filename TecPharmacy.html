@@ -398,6 +398,22 @@ td { padding:11px 14px; font-size:13px; }
         <div class="field"><label>تاريخ الانتهاء</label><input type="date" id="inp-exp"></div>
       </div>
       <div class="form-grid form-2">
+        <div class="field"><label>الفئة</label>
+          <select id="inp-group">
+            <option value="">— اختر الفئة —</option>
+            <option value="antibiotics">🦠 مضادات حيوية</option>
+            <option value="analgesics">💊 مسكنات</option>
+            <option value="cardiac">❤️ أدوية القلب</option>
+            <option value="diabetes">🩸 أدوية السكري</option>
+            <option value="gi">🫃 الجهاز الهضمي</option>
+            <option value="respiratory">🫁 الجهاز التنفسي</option>
+            <option value="neuro">🧠 الجهاز العصبي</option>
+            <option value="psych">🧬 نفسية ومخدرة</option>
+            <option value="vitamins">🌿 فيتامينات ومكملات</option>
+            <option value="iv">💉 محاليل وريدية</option>
+            <option value="other">📦 أخرى</option>
+          </select>
+        </div>
         <div class="field"><label>التصنيف</label>
           <select id="inp-cat">
             <option value="regular">عادي</option>
@@ -427,6 +443,20 @@ td { padding:11px 14px; font-size:13px; }
       <button class="fbtn" onclick="setInvF('expired',this)">❌ منتهية</button>
       <button class="fbtn" onclick="setInvF('narcotic',this)">🔴 مخدرة</button>
       <button class="fbtn" onclick="setInvF('psycho',this)">🟣 نفسية</button>
+      <select id="inv-group-filter" onchange="renderInv()" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:12px;outline:none;">
+        <option value="">كل الفئات</option>
+        <option value="antibiotics">🦠 مضادات حيوية</option>
+        <option value="analgesics">💊 مسكنات</option>
+        <option value="cardiac">❤️ القلب</option>
+        <option value="diabetes">🩸 السكري</option>
+        <option value="gi">🫃 الهضمي</option>
+        <option value="respiratory">🫁 التنفسي</option>
+        <option value="neuro">🧠 العصبي</option>
+        <option value="psych">🧬 نفسية ومخدرة</option>
+        <option value="vitamins">🌿 فيتامينات</option>
+        <option value="iv">💉 محاليل</option>
+        <option value="other">📦 أخرى</option>
+      </select>
       <button class="fbtn" onclick="exportExcel()">📥 Excel</button>
       <label class="fbtn" style="cursor:pointer">📤 استيراد<input type="file" accept=".xlsx,.xls" onchange="importExcel(event)" style="position:absolute;opacity:0;width:0;height:0"></label>
       <button class="fbtn" onclick="whBackup()" style="border-color:#7c3aed40;color:#a78bfa">💾 نسخ احتياطي</button>
@@ -743,90 +773,172 @@ function loadWeather(){
 
 // ═══ DRUG DB ═══
 const DRUG_DB=[
-  {n:'Paracetamol',a:'باراسيتامول',c:'500mg',f:'أقراص',t:'regular'},
-  {n:'Paracetamol',a:'باراسيتامول',c:'1g',f:'أقراص',t:'regular'},
-  {n:'Ibuprofen',a:'إيبوبروفين',c:'400mg',f:'أقراص',t:'regular'},
-  {n:'Diclofenac',a:'ديكلوفيناك',c:'50mg',f:'أقراص',t:'regular'},
-  {n:'Diclofenac',a:'ديكلوفيناك',c:'75mg/3ml',f:'حقن',t:'regular'},
-  {n:'Tramadol',a:'ترامادول',c:'50mg',f:'كبسول',t:'narcotic'},
-  {n:'Tramadol',a:'ترامادول',c:'100mg/2ml',f:'حقن',t:'narcotic'},
-  {n:'Morphine',a:'مورفين',c:'10mg/ml',f:'حقن',t:'narcotic'},
-  {n:'Pethidine',a:'بيثيدين',c:'50mg/ml',f:'حقن',t:'narcotic'},
-  {n:'Fentanyl',a:'فنتانيل',c:'50mcg/ml',f:'حقن',t:'narcotic'},
-  {n:'Amoxicillin',a:'أموكسيسيلين',c:'500mg',f:'كبسول',t:'regular'},
-  {n:'Amoxicillin+Clavulanate',a:'أموكسيسيلين+كلافولانات',c:'625mg',f:'أقراص',t:'regular'},
-  {n:'Azithromycin',a:'أزيثرومايسين',c:'500mg',f:'أقراص',t:'regular'},
-  {n:'Ciprofloxacin',a:'سيبروفلوكساسين',c:'500mg',f:'أقراص',t:'regular'},
-  {n:'Ciprofloxacin',a:'سيبروفلوكساسين',c:'200mg/100ml',f:'حقن',t:'regular'},
-  {n:'Metronidazole',a:'ميترونيدازول',c:'500mg',f:'أقراص',t:'regular'},
-  {n:'Metronidazole',a:'ميترونيدازول',c:'500mg/100ml',f:'حقن',t:'regular'},
-  {n:'Ceftriaxone',a:'سيفترياكسون',c:'1g',f:'حقن',t:'regular'},
-  {n:'Vancomycin',a:'فانكومايسين',c:'500mg',f:'حقن',t:'regular'},
-  {n:'Meropenem',a:'ميروبينيم',c:'1g',f:'حقن',t:'regular'},
-  {n:'Amlodipine',a:'أملوديبين',c:'5mg',f:'أقراص',t:'regular'},
-  {n:'Metoprolol',a:'ميتوبرولول',c:'50mg',f:'أقراص',t:'regular'},
-  {n:'Losartan',a:'لوسارتان',c:'50mg',f:'أقراص',t:'regular'},
-  {n:'Furosemide',a:'فيوروسيمايد',c:'40mg',f:'أقراص',t:'regular'},
-  {n:'Aspirin',a:'أسبرين',c:'100mg',f:'أقراص',t:'regular'},
-  {n:'Atorvastatin',a:'أتورفاستاتين',c:'40mg',f:'أقراص',t:'regular'},
-  {n:'Metformin',a:'ميتفورمين',c:'500mg',f:'أقراص',t:'regular'},
-  {n:'Metformin',a:'ميتفورمين',c:'1000mg',f:'أقراص',t:'regular'},
-  {n:'Insulin Regular',a:'أنسولين عادي',c:'100 IU/ml',f:'حقن',t:'regular'},
-  {n:'Insulin Glargine',a:'أنسولين جلارجين',c:'100 IU/ml',f:'حقن',t:'regular'},
-  {n:'Omeprazole',a:'أوميبرازول',c:'20mg',f:'كبسول',t:'regular'},
-  {n:'Omeprazole',a:'أوميبرازول',c:'40mg',f:'حقن',t:'regular'},
-  {n:'Ondansetron',a:'أوندانسيترون',c:'8mg/4ml',f:'حقن',t:'regular'},
-  {n:'Metoclopramide',a:'ميتوكلوبراميد',c:'10mg/2ml',f:'حقن',t:'regular'},
-  {n:'Salbutamol',a:'سالبوتامول',c:'2.5mg/2.5ml',f:'بخاخ',t:'regular'},
-  {n:'Dexamethasone',a:'ديكساميثازون',c:'4mg/ml',f:'حقن',t:'regular'},
-  {n:'Hydrocortisone',a:'هيدروكورتيزون',c:'100mg',f:'حقن',t:'regular'},
-  {n:'Prednisolone',a:'بريدنيزولون',c:'5mg',f:'أقراص',t:'regular'},
-  {n:'Haloperidol',a:'هالوبيريدول',c:'5mg/ml',f:'حقن',t:'psycho'},
-  {n:'Risperidone',a:'ريسبيريدون',c:'2mg',f:'أقراص',t:'psycho'},
-  {n:'Olanzapine',a:'أولانزابين',c:'10mg',f:'أقراص',t:'psycho'},
-  {n:'Quetiapine',a:'كويتيابين',c:'100mg',f:'أقراص',t:'psycho'},
-  {n:'Diazepam',a:'ديازيبام',c:'5mg',f:'أقراص',t:'psycho'},
-  {n:'Midazolam',a:'ميدازولام',c:'5mg/ml',f:'حقن',t:'psycho'},
-  {n:'Lorazepam',a:'لورازيبام',c:'2mg/ml',f:'حقن',t:'psycho'},
-  {n:'Sertraline',a:'سيرترالين',c:'50mg',f:'أقراص',t:'psycho'},
-  {n:'Fluoxetine',a:'فلوكستين',c:'20mg',f:'كبسول',t:'psycho'},
-  {n:'Carbamazepine',a:'كاربامازيبين',c:'200mg',f:'أقراص',t:'psycho'},
-  {n:'Valproic Acid',a:'حمض الفالبرويك',c:'500mg',f:'أقراص',t:'psycho'},
-  {n:'Normal Saline',a:'محلول ملحي',c:'0.9%',f:'محلول وريدي',t:'regular'},
-  {n:'Dextrose',a:'دكستروز',c:'5%',f:'محلول وريدي',t:'regular'},
-  {n:'Ringer Lactate',a:'رينجر لاكتات',c:'',f:'محلول وريدي',t:'regular'},
-  {n:'Adrenaline',a:'أدرينالين',c:'1mg/ml',f:'حقن',t:'regular'},
-  {n:'Atropine',a:'أتروبين',c:'1mg/ml',f:'حقن',t:'regular'},
-  {n:'Dopamine',a:'دوبامين',c:'40mg/ml',f:'حقن',t:'regular'},
-  {n:'Norepinephrine',a:'نورإبينفرين',c:'1mg/ml',f:'حقن',t:'regular'},
-  {n:'Calcium Gluconate',a:'كالسيوم جلوكونات',c:'10%',f:'حقن',t:'regular'},
-  {n:'Magnesium Sulfate',a:'كبريتات الماغنيسيوم',c:'50%',f:'حقن',t:'regular'},
-  {n:'Tranexamic Acid',a:'حمض الترانيكساميك',c:'500mg/5ml',f:'حقن',t:'regular'},
-  {n:'Vitamin D3',a:'فيتامين د3',c:'50000 IU',f:'كبسول',t:'regular'},
-  {n:'Folic Acid',a:'حمض الفوليك',c:'5mg',f:'أقراص',t:'regular'},
-  {n:'Fluconazole',a:'فلوكونازول',c:'150mg',f:'كبسول',t:'regular'},
-  {n:'Acyclovir',a:'أسيكلوفير',c:'200mg',f:'أقراص',t:'regular'},
-  {n:'Levothyroxine',a:'ليفوثيروكسين',c:'100mcg',f:'أقراص',t:'regular'},
-  {n:'Allopurinol',a:'ألوبيورينول',c:'300mg',f:'أقراص',t:'regular'},
-  {n:'Warfarin',a:'وارفارين',c:'5mg',f:'أقراص',t:'regular'},
-  {n:'Enoxaparin',a:'إينوكساباريم',c:'40mg/0.4ml',f:'حقن',t:'regular'},
-  {n:'Clopidogrel',a:'كلوبيدوجريل',c:'75mg',f:'أقراص',t:'regular'},
-  {n:'Oseltamivir',a:'أوسيلتاميفير',c:'75mg',f:'كبسول',t:'regular'},
-  {n:'Ketamine',a:'كيتامين',c:'500mg/10ml',f:'حقن',t:'narcotic'},
-  {n:'Propofol',a:'بروبوفول',c:'200mg/20ml',f:'حقن',t:'narcotic'},
-  {n:'Naloxone',a:'نالوكسون',c:'0.4mg/ml',f:'حقن',t:'narcotic'},
-  {n:'Oxycodone',a:'أوكسيكودون',c:'10mg',f:'أقراص',t:'narcotic'},
-  {n:'Codeine',a:'كودين',c:'30mg',f:'أقراص',t:'narcotic'},
-  {n:'Mannitol',a:'مانيتول',c:'20%',f:'محلول وريدي',t:'regular'},
-  {n:'Potassium Chloride',a:'كلوريد البوتاسيوم',c:'15%',f:'محلول وريدي',t:'regular'},
-  {n:'Sodium Bicarbonate',a:'بيكربونات الصوديوم',c:'8.4%',f:'حقن',t:'regular'},
-  {n:'Oxytocin',a:'أوكسيتوسين',c:'10 IU/ml',f:'حقن',t:'regular'},
-  {n:'Empagliflozin',a:'إيمباجليفلوزين',c:'10mg',f:'أقراص',t:'regular'},
-  {n:'Gabapentin',a:'جابابنتين',c:'300mg',f:'كبسول',t:'psycho'},
-  {n:'Pregabalin',a:'بريجابالين',c:'75mg',f:'كبسول',t:'psycho'},
-  {n:'Zolpidem',a:'زولبيديم',c:'10mg',f:'أقراص',t:'psycho'},
-  {n:'Alprazolam',a:'ألبرازولام',c:'0.5mg',f:'أقراص',t:'psycho'},
-  {n:'Lithium Carbonate',a:'كربونات الليثيوم',c:'300mg',f:'أقراص',t:'psycho'},
+  // ── مسكنات ──
+  {n:'Paracetamol',a:'باراسيتامول',c:'500mg',f:'أقراص',t:'regular',g:'analgesics'},
+  {n:'Paracetamol',a:'باراسيتامول',c:'1g',f:'أقراص',t:'regular',g:'analgesics'},
+  {n:'Paracetamol',a:'باراسيتامول',c:'120mg/5ml',f:'شراب',t:'regular',g:'analgesics'},
+  {n:'Paracetamol',a:'باراسيتامول',c:'500mg/50ml',f:'حقن',t:'regular',g:'analgesics'},
+  {n:'Ibuprofen',a:'إيبوبروفين',c:'400mg',f:'أقراص',t:'regular',g:'analgesics'},
+  {n:'Ibuprofen',a:'إيبوبروفين',c:'200mg/5ml',f:'شراب',t:'regular',g:'analgesics'},
+  {n:'Diclofenac',a:'ديكلوفيناك',c:'50mg',f:'أقراص',t:'regular',g:'analgesics'},
+  {n:'Diclofenac',a:'ديكلوفيناك',c:'75mg/3ml',f:'حقن',t:'regular',g:'analgesics'},
+  {n:'Ketorolac',a:'كيتورولاك',c:'30mg/ml',f:'حقن',t:'regular',g:'analgesics'},
+  {n:'Naproxen',a:'نابروكسين',c:'500mg',f:'أقراص',t:'regular',g:'analgesics'},
+  {n:'Aspirin',a:'أسبرين',c:'100mg',f:'أقراص',t:'regular',g:'analgesics'},
+  {n:'Aspirin',a:'أسبرين',c:'500mg',f:'أقراص',t:'regular',g:'analgesics'},
+  // ── مسكنات مخدرة ──
+  {n:'Tramadol',a:'ترامادول',c:'50mg',f:'كبسول',t:'narcotic',g:'analgesics'},
+  {n:'Tramadol',a:'ترامادول',c:'100mg/2ml',f:'حقن',t:'narcotic',g:'analgesics'},
+  {n:'Morphine',a:'مورفين',c:'10mg/ml',f:'حقن',t:'narcotic',g:'analgesics'},
+  {n:'Pethidine',a:'بيثيدين',c:'50mg/ml',f:'حقن',t:'narcotic',g:'analgesics'},
+  {n:'Fentanyl',a:'فنتانيل',c:'50mcg/ml',f:'حقن',t:'narcotic',g:'analgesics'},
+  {n:'Codeine',a:'كودين',c:'30mg',f:'أقراص',t:'narcotic',g:'analgesics'},
+  {n:'Oxycodone',a:'أوكسيكودون',c:'10mg',f:'أقراص',t:'narcotic',g:'analgesics'},
+  {n:'Ketamine',a:'كيتامين',c:'500mg/10ml',f:'حقن',t:'narcotic',g:'analgesics'},
+  {n:'Naloxone',a:'نالوكسون',c:'0.4mg/ml',f:'حقن',t:'narcotic',g:'analgesics'},
+  // ── مضادات حيوية ──
+  {n:'Amoxicillin',a:'أموكسيسيلين',c:'500mg',f:'كبسول',t:'regular',g:'antibiotics'},
+  {n:'Amoxicillin',a:'أموكسيسيلين',c:'250mg/5ml',f:'شراب',t:'regular',g:'antibiotics'},
+  {n:'Amoxicillin+Clavulanate',a:'أموكسيسيلين+كلافولانات',c:'625mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  {n:'Amoxicillin+Clavulanate',a:'أموكسيسيلين+كلافولانات',c:'228mg/5ml',f:'شراب',t:'regular',g:'antibiotics'},
+  {n:'Azithromycin',a:'أزيثرومايسين',c:'500mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  {n:'Azithromycin',a:'أزيثرومايسين',c:'200mg/5ml',f:'شراب',t:'regular',g:'antibiotics'},
+  {n:'Ciprofloxacin',a:'سيبروفلوكساسين',c:'500mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  {n:'Ciprofloxacin',a:'سيبروفلوكساسين',c:'200mg/100ml',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Metronidazole',a:'ميترونيدازول',c:'500mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  {n:'Metronidazole',a:'ميترونيدازول',c:'500mg/100ml',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Ceftriaxone',a:'سيفترياكسون',c:'1g',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Ceftriaxone',a:'سيفترياكسون',c:'500mg',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Cefazolin',a:'سيفازولين',c:'1g',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Vancomycin',a:'فانكومايسين',c:'500mg',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Meropenem',a:'ميروبينيم',c:'1g',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Piperacillin+Tazobactam',a:'بيبيراسيلين+تازوباكتام',c:'4.5g',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Clindamycin',a:'كليندامايسين',c:'300mg',f:'كبسول',t:'regular',g:'antibiotics'},
+  {n:'Clindamycin',a:'كليندامايسين',c:'600mg/4ml',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Gentamicin',a:'جنتاميسين',c:'80mg/2ml',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Fluconazole',a:'فلوكونازول',c:'150mg',f:'كبسول',t:'regular',g:'antibiotics'},
+  {n:'Fluconazole',a:'فلوكونازول',c:'200mg/100ml',f:'حقن',t:'regular',g:'antibiotics'},
+  {n:'Acyclovir',a:'أسيكلوفير',c:'200mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  {n:'Oseltamivir',a:'أوسيلتاميفير',c:'75mg',f:'كبسول',t:'regular',g:'antibiotics'},
+  {n:'Doxycycline',a:'دوكسيسيكلين',c:'100mg',f:'كبسول',t:'regular',g:'antibiotics'},
+  {n:'Levofloxacin',a:'ليفوفلوكساسين',c:'500mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  {n:'Trimethoprim+Sulfamethoxazole',a:'ترايميثوبريم+سلفاميثوكسازول',c:'960mg',f:'أقراص',t:'regular',g:'antibiotics'},
+  // ── القلب والأوعية ──
+  {n:'Amlodipine',a:'أملوديبين',c:'5mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Amlodipine',a:'أملوديبين',c:'10mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Metoprolol',a:'ميتوبرولول',c:'50mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Metoprolol',a:'ميتوبرولول',c:'100mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Losartan',a:'لوسارتان',c:'50mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Losartan',a:'لوسارتان',c:'100mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Furosemide',a:'فيوروسيمايد',c:'40mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Furosemide',a:'فيوروسيمايد',c:'20mg/2ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Atorvastatin',a:'أتورفاستاتين',c:'40mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Atorvastatin',a:'أتورفاستاتين',c:'80mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Clopidogrel',a:'كلوبيدوجريل',c:'75mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Warfarin',a:'وارفارين',c:'5mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Enoxaparin',a:'إينوكساباريم',c:'40mg/0.4ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Enoxaparin',a:'إينوكساباريم',c:'60mg/0.6ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Heparin',a:'هيبارين',c:'5000 IU/ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Adrenaline',a:'أدرينالين',c:'1mg/ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Atropine',a:'أتروبين',c:'1mg/ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Dopamine',a:'دوبامين',c:'40mg/ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Norepinephrine',a:'نورإبينفرين',c:'1mg/ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Amiodarone',a:'أميودارون',c:'200mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Amiodarone',a:'أميودارون',c:'150mg/3ml',f:'حقن',t:'regular',g:'cardiac'},
+  {n:'Digoxin',a:'ديجوكسين',c:'0.25mg',f:'أقراص',t:'regular',g:'cardiac'},
+  {n:'Nitroglycerin',a:'نيتروجلسيرين',c:'0.5mg',f:'أقراص',t:'regular',g:'cardiac'},
+  // ── السكري ──
+  {n:'Metformin',a:'ميتفورمين',c:'500mg',f:'أقراص',t:'regular',g:'diabetes'},
+  {n:'Metformin',a:'ميتفورمين',c:'1000mg',f:'أقراص',t:'regular',g:'diabetes'},
+  {n:'Insulin Regular',a:'أنسولين عادي',c:'100 IU/ml',f:'حقن',t:'regular',g:'diabetes'},
+  {n:'Insulin Glargine',a:'أنسولين جلارجين',c:'100 IU/ml',f:'حقن',t:'regular',g:'diabetes'},
+  {n:'Insulin Aspart',a:'أنسولين أسبارت',c:'100 IU/ml',f:'حقن',t:'regular',g:'diabetes'},
+  {n:'Insulin NPH',a:'أنسولين NPH',c:'100 IU/ml',f:'حقن',t:'regular',g:'diabetes'},
+  {n:'Glibenclamide',a:'جليبنكلاميد',c:'5mg',f:'أقراص',t:'regular',g:'diabetes'},
+  {n:'Empagliflozin',a:'إيمباجليفلوزين',c:'10mg',f:'أقراص',t:'regular',g:'diabetes'},
+  {n:'Sitagliptin',a:'سيتاجليبتين',c:'100mg',f:'أقراص',t:'regular',g:'diabetes'},
+  {n:'Glucagon',a:'جلوكاجون',c:'1mg',f:'حقن',t:'regular',g:'diabetes'},
+  {n:'Dextrose 50%',a:'دكستروز 50%',c:'50%',f:'حقن',t:'regular',g:'diabetes'},
+  // ── الجهاز الهضمي ──
+  {n:'Omeprazole',a:'أوميبرازول',c:'20mg',f:'كبسول',t:'regular',g:'gi'},
+  {n:'Omeprazole',a:'أوميبرازول',c:'40mg',f:'حقن',t:'regular',g:'gi'},
+  {n:'Pantoprazole',a:'بانتوبرازول',c:'40mg',f:'أقراص',t:'regular',g:'gi'},
+  {n:'Pantoprazole',a:'بانتوبرازول',c:'40mg',f:'حقن',t:'regular',g:'gi'},
+  {n:'Ondansetron',a:'أوندانسيترون',c:'8mg/4ml',f:'حقن',t:'regular',g:'gi'},
+  {n:'Ondansetron',a:'أوندانسيترون',c:'4mg',f:'أقراص',t:'regular',g:'gi'},
+  {n:'Metoclopramide',a:'ميتوكلوبراميد',c:'10mg/2ml',f:'حقن',t:'regular',g:'gi'},
+  {n:'Ranitidine',a:'رانيتيدين',c:'150mg',f:'أقراص',t:'regular',g:'gi'},
+  {n:'Hyoscine',a:'هيوسين',c:'20mg/ml',f:'حقن',t:'regular',g:'gi'},
+  {n:'Lactulose',a:'لاكتولوز',c:'3.3g/5ml',f:'شراب',t:'regular',g:'gi'},
+  {n:'Bisacodyl',a:'بيساكوديل',c:'5mg',f:'أقراص',t:'regular',g:'gi'},
+  {n:'Domperidone',a:'دومبيريدون',c:'10mg',f:'أقراص',t:'regular',g:'gi'},
+  {n:'Loperamide',a:'لوبيراميد',c:'2mg',f:'كبسول',t:'regular',g:'gi'},
+  // ── الجهاز التنفسي ──
+  {n:'Salbutamol',a:'سالبوتامول',c:'2.5mg/2.5ml',f:'بخاخ',t:'regular',g:'respiratory'},
+  {n:'Salbutamol',a:'سالبوتامول',c:'100mcg',f:'بخاخ',t:'regular',g:'respiratory'},
+  {n:'Budesonide',a:'بوديزونيد',c:'0.5mg/2ml',f:'بخاخ',t:'regular',g:'respiratory'},
+  {n:'Ipratropium',a:'إبراتروبيوم',c:'0.5mg/2ml',f:'بخاخ',t:'regular',g:'respiratory'},
+  {n:'Montelukast',a:'مونتيلوكاست',c:'10mg',f:'أقراص',t:'regular',g:'respiratory'},
+  {n:'Theophylline',a:'ثيوفيلين',c:'200mg',f:'أقراص',t:'regular',g:'respiratory'},
+  {n:'Dexamethasone',a:'ديكساميثازون',c:'4mg/ml',f:'حقن',t:'regular',g:'respiratory'},
+  {n:'Hydrocortisone',a:'هيدروكورتيزون',c:'100mg',f:'حقن',t:'regular',g:'respiratory'},
+  {n:'Prednisolone',a:'بريدنيزولون',c:'5mg',f:'أقراص',t:'regular',g:'respiratory'},
+  {n:'Aminophylline',a:'أمينوفيلين',c:'250mg/10ml',f:'حقن',t:'regular',g:'respiratory'},
+  // ── الجهاز العصبي ──
+  {n:'Phenytoin',a:'فينيتوين',c:'250mg/5ml',f:'حقن',t:'psycho',g:'neuro'},
+  {n:'Carbamazepine',a:'كاربامازيبين',c:'200mg',f:'أقراص',t:'psycho',g:'neuro'},
+  {n:'Valproic Acid',a:'حمض الفالبرويك',c:'500mg',f:'أقراص',t:'psycho',g:'neuro'},
+  {n:'Levetiracetam',a:'ليفيتيراسيتام',c:'500mg',f:'أقراص',t:'psycho',g:'neuro'},
+  {n:'Gabapentin',a:'جابابنتين',c:'300mg',f:'كبسول',t:'psycho',g:'neuro'},
+  {n:'Pregabalin',a:'بريجابالين',c:'75mg',f:'كبسول',t:'psycho',g:'neuro'},
+  {n:'Sumatriptan',a:'سوماتريبتان',c:'50mg',f:'أقراص',t:'regular',g:'neuro'},
+  {n:'Mannitol',a:'مانيتول',c:'20%',f:'محلول وريدي',t:'regular',g:'neuro'},
+  // ── نفسية ومخدرة ──
+  {n:'Haloperidol',a:'هالوبيريدول',c:'5mg/ml',f:'حقن',t:'psycho',g:'psych'},
+  {n:'Haloperidol',a:'هالوبيريدول',c:'5mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Risperidone',a:'ريسبيريدون',c:'2mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Olanzapine',a:'أولانزابين',c:'10mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Quetiapine',a:'كويتيابين',c:'100mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Quetiapine',a:'كويتيابين',c:'200mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Diazepam',a:'ديازيبام',c:'5mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Diazepam',a:'ديازيبام',c:'10mg/2ml',f:'حقن',t:'psycho',g:'psych'},
+  {n:'Midazolam',a:'ميدازولام',c:'5mg/ml',f:'حقن',t:'psycho',g:'psych'},
+  {n:'Lorazepam',a:'لورازيبام',c:'2mg/ml',f:'حقن',t:'psycho',g:'psych'},
+  {n:'Alprazolam',a:'ألبرازولام',c:'0.5mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Zolpidem',a:'زولبيديم',c:'10mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Sertraline',a:'سيرترالين',c:'50mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Fluoxetine',a:'فلوكستين',c:'20mg',f:'كبسول',t:'psycho',g:'psych'},
+  {n:'Lithium Carbonate',a:'كربونات الليثيوم',c:'300mg',f:'أقراص',t:'psycho',g:'psych'},
+  {n:'Propofol',a:'بروبوفول',c:'200mg/20ml',f:'حقن',t:'narcotic',g:'psych'},
+  // ── فيتامينات ومكملات ──
+  {n:'Vitamin D3',a:'فيتامين د3',c:'50000 IU',f:'كبسول',t:'regular',g:'vitamins'},
+  {n:'Vitamin B12',a:'فيتامين ب12',c:'1000mcg',f:'حقن',t:'regular',g:'vitamins'},
+  {n:'Folic Acid',a:'حمض الفوليك',c:'5mg',f:'أقراص',t:'regular',g:'vitamins'},
+  {n:'Iron Sucrose',a:'حديد سكروز',c:'100mg/5ml',f:'حقن',t:'regular',g:'vitamins'},
+  {n:'Ferrous Sulfate',a:'كبريتات الحديدوز',c:'200mg',f:'أقراص',t:'regular',g:'vitamins'},
+  {n:'Calcium Gluconate',a:'كالسيوم جلوكونات',c:'10%',f:'حقن',t:'regular',g:'vitamins'},
+  {n:'Magnesium Sulfate',a:'كبريتات الماغنيسيوم',c:'50%',f:'حقن',t:'regular',g:'vitamins'},
+  {n:'Potassium Chloride',a:'كلوريد البوتاسيوم',c:'15%',f:'محلول وريدي',t:'regular',g:'vitamins'},
+  {n:'Zinc Sulfate',a:'كبريتات الزنك',c:'20mg',f:'أقراص',t:'regular',g:'vitamins'},
+  // ── محاليل وريدية ──
+  {n:'Normal Saline',a:'محلول ملحي',c:'0.9% 500ml',f:'محلول وريدي',t:'regular',g:'iv'},
+  {n:'Normal Saline',a:'محلول ملحي',c:'0.9% 100ml',f:'محلول وريدي',t:'regular',g:'iv'},
+  {n:'Dextrose 5%',a:'دكستروز 5%',c:'500ml',f:'محلول وريدي',t:'regular',g:'iv'},
+  {n:'Ringer Lactate',a:'رينجر لاكتات',c:'500ml',f:'محلول وريدي',t:'regular',g:'iv'},
+  {n:'Sodium Bicarbonate',a:'بيكربونات الصوديوم',c:'8.4%',f:'حقن',t:'regular',g:'iv'},
+  {n:'Protein Plasma',a:'بروتين بلازما',c:'5% 250ml',f:'محلول وريدي',t:'regular',g:'iv'},
+  {n:'Tranexamic Acid',a:'حمض الترانيكساميك',c:'500mg/5ml',f:'حقن',t:'regular',g:'iv'},
+  {n:'Oxytocin',a:'أوكسيتوسين',c:'10 IU/ml',f:'حقن',t:'regular',g:'iv'},
+  // ── أخرى ──
+  {n:'Levothyroxine',a:'ليفوثيروكسين',c:'100mcg',f:'أقراص',t:'regular',g:'other'},
+  {n:'Allopurinol',a:'ألوبيورينول',c:'300mg',f:'أقراص',t:'regular',g:'other'},
+  {n:'Colchicine',a:'كولشيسين',c:'0.5mg',f:'أقراص',t:'regular',g:'other'},
+  {n:'Dexamethasone',a:'ديكساميثازون',c:'8mg/2ml',f:'حقن',t:'regular',g:'other'},
+  {n:'Lidocaine',a:'ليدوكايين',c:'1%',f:'حقن',t:'regular',g:'other'},
+  {n:'Lidocaine',a:'ليدوكايين',c:'2%',f:'حقن',t:'regular',g:'other'},
+  {n:'Chlorhexidine',a:'كلورهيكسيدين',c:'4%',f:'محلول',t:'regular',g:'other'},
+  {n:'Heparin',a:'هيبارين',c:'1000 IU/ml',f:'حقن',t:'regular',g:'other'},
+  //OLD
 ];
 
 // ═══ FIREBASE ═══
@@ -1059,6 +1171,7 @@ function onDrugInput(){
 function selDrug(name,form,cat){
   document.getElementById('inp-name').value=name;
   document.getElementById('drug-sug').style.display='none';
+  document.getElementById('inp-group').value='';
   const tm={أقراص:'أقراص',كبسول:'كبسول',شراب:'شراب',حقن:'حقن',مرهم:'مرهم',قطرة:'قطرة',أمبول:'أمبول',بخاخ:'بخاخ'};
   document.getElementById('inp-type').value=tm[form]||'أخرى';
   document.getElementById('inp-cat').value=cat;
@@ -1091,12 +1204,14 @@ function renderInv(){
   document.getElementById('inv-add-card').style.display=canAdd?'block':'none';
   document.getElementById('inv-actions-col').style.display=(canEdit||canDelete)?'':'none';
 
+  const groupF=document.getElementById('inv-group-filter')?.value||'';
   let list=drugs.filter(d=>{
     const name=(d.name||'').toLowerCase();
     const matchQ=!q||name.includes(q);
     if(!matchQ) return false;
     const days=daysLeft(d.exp);
     const st=expStatus(days);
+    if(groupF && (d.group||'')!==groupF) return false;
     if(invFilter==='all') return true;
     if(invFilter==='narcotic') return (d.cat||d.category)==='narcotic';
     if(invFilter==='psycho')   return (d.cat||d.category)==='psycho';
@@ -1112,13 +1227,15 @@ function renderInv(){
     const days=daysLeft(d.exp);
     const st=expStatus(days);
     const cat=(d.cat||d.category)==='narcotic'?'<span class="badge badge-narc">🔴 مخدر</span>':(d.cat||d.category)==='psycho'?'<span class="badge badge-psych">🟣 نفسي</span>':'';
+    const groupLabels={'antibiotics':'🦠 مضادات','analgesics':'💊 مسكنات','cardiac':'❤️ قلب','diabetes':'🩸 سكري','gi':'🫃 هضمي','respiratory':'🫁 تنفسي','neuro':'🧠 عصبي','psych':'🧬 نفسية','vitamins':'🌿 فيتامينات','iv':'💉 محاليل','other':'📦 أخرى'};
+    const groupBadge=d.group&&groupLabels[d.group]?`<span style="font-size:10px;background:var(--surface2);color:var(--text-muted);padding:1px 7px;border-radius:20px;margin-right:4px">${groupLabels[d.group]}</span>`:'';
     const actions=(canEdit||canDelete)?`<td>
       ${canEdit?`<button class="btn-secondary" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="openEdit('${d.id}')">تعديل</button>`:''}
       ${canDelete?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteDrug('${d.id}')">حذف</button>`:''}
     </td>`:''
     return `<tr>
       <td style="color:var(--text-muted);font-size:11px">${i+1}</td>
-      <td><div style="font-weight:700">${d.name||''} ${cat}</div><div style="font-size:10px;color:var(--text-muted)">${d.type||''} ${d.note?'• '+d.note:''}</div></td>
+      <td><div style="font-weight:700">${d.name||''} ${cat}</div><div style="margin-top:2px">${groupBadge}</div><div style="font-size:10px;color:var(--text-muted)">${d.type||''} ${d.note?'• '+d.note:''}</div></td>
       <td><span style="background:#0099ff15;color:var(--accent2);padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px">📦 ${d.qty||0}</span></td>
       <td style="font-size:12px">${fmtDate(d.exp)}</td>
       <td><span class="badge ${st.c}">${st.l}</span></td>
@@ -1133,10 +1250,11 @@ async function addDrug(){
   const qty=+document.getElementById('inp-qty').value;
   const exp=document.getElementById('inp-exp').value;
   const cat=document.getElementById('inp-cat').value;
+  const group=document.getElementById('inp-group').value;
   const note=document.getElementById('inp-note').value.trim();
   if(!name){showMsg('⚠️ أدخل اسم الدواء');return;}
   if(!exp){showMsg('⚠️ أدخل تاريخ الانتهاء');return;}
-  const drug={name,type,qty,exp,cat,note};
+  const drug={name,type,qty,exp,cat,group,note};
   await saveDrug(drug);
   drugs.push(drug);
   document.getElementById('inp-name').value='';
@@ -1144,6 +1262,7 @@ async function addDrug(){
   document.getElementById('inp-exp').value='';
   document.getElementById('inp-note').value='';
   document.getElementById('drug-sug').style.display='none';
+  document.getElementById('inp-group').value='';
   await logActivity('إضافة دواء',`${name} (${qty})`);
   showMsg('✅ تم إضافة الدواء');
   renderInv(); updateDispSel();
@@ -1443,7 +1562,7 @@ function renderWhInv(){
     const cat=(d.cat||d.category)==='narcotic'?'<span class="badge badge-narc">🔴</span>':(d.cat||d.category)==='psycho'?'<span class="badge badge-psych">🟣</span>':'';
     return `<tr>
       <td style="color:var(--text-muted);font-size:11px">${i+1}</td>
-      <td><div style="font-weight:700">${d.name||''} ${cat}</div><div style="font-size:10px;color:var(--text-muted)">${d.type||''}</div></td>
+      <td><div style="font-weight:700">${d.name||''} ${cat}</div><div style="margin-top:2px">${groupBadge}</div><div style="font-size:10px;color:var(--text-muted)">${d.type||''}</div></td>
       <td><span style="background:#0099ff15;color:var(--accent2);padding:3px 10px;border-radius:20px;font-weight:700;font-size:12px">📦 ${d.qty||0}</span></td>
       <td style="font-size:12px">${fmtDate(d.exp)}</td>
       <td><span class="badge ${st.c}">${st.l}</span></td>
