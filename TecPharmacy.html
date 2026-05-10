@@ -638,28 +638,6 @@ td { padding:11px 14px; font-size:13px; }
   <div id="di-result" style="margin-top:16px"></div>
 </div>
 
-<!-- Edit User Modal -->
-<div class="modal-bg" id="edit-user-modal">
-  <div class="modal">
-    <h3>✏️ تعديل بيانات المستخدم</h3>
-    <input type="hidden" id="eu-uid">
-    <input type="hidden" id="eu-docid">
-    <div class="field">
-      <label>الاسم الجديد</label>
-      <input type="text" id="eu-name" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
-    </div>
-    <div class="field">
-      <label>كلمة المرور الجديدة <span style="color:var(--text-muted);font-size:11px">(اتركها فارغة إذا لا تريد تغييرها)</span></label>
-      <input type="password" id="eu-pass" placeholder="••••••••" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
-    </div>
-    <div class="modal-btns">
-      <button class="btn-primary" onclick="saveEditUser()">حفظ التعديلات</button>
-      <button class="btn-secondary" onclick="closeModal('edit-user-modal')">إلغاء</button>
-    </div>
-    <div class="modal-err" id="eu-err"></div>
-  </div>
-</div>
-
 <!-- Add User Modal -->
 <div class="modal-bg" id="add-user-modal">
   <div class="modal">
@@ -1287,6 +1265,24 @@ async function addDrug(){
   const note=document.getElementById('inp-note').value.trim();
   if(!name){showMsg('⚠️ أدخل اسم الدواء');return;}
   if(!exp){showMsg('⚠️ أدخل تاريخ الانتهاء');return;}
+  // ── فحص التكرار: اسم + شكل ──
+  const duplicate = drugs.find(d=>
+    (d.name||'').toLowerCase().trim()===name.toLowerCase().trim() &&
+    (d.type||'').trim()===type.trim()
+  );
+  if(duplicate){
+    showMsg('⚠️ موجود مسبقاً: '+duplicate.name+' — '+duplicate.type);
+    return;
+  }
+  // ── فحص التكرار: اسم + نوع (شكل) ──
+  const duplicate = drugs.find(d =>
+    (d.name||'').toLowerCase().trim() === name.toLowerCase().trim() &&
+    (d.type||'').trim() === type.trim()
+  );
+  if(duplicate){
+    showMsg(`⚠️ الدواء موجود مسبقاً: ${duplicate.name} — ${duplicate.type}`);
+    return;
+  }
   const drug={name,type,qty,exp,cat,group,note};
   await saveDrug(drug);
   drugs.push(drug);
@@ -1765,7 +1761,6 @@ async function loadUsers(){
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="badge badge-approved">${roles[u.role]||u.role}</span>
-          <button class="btn-secondary" style="padding:4px 10px;font-size:11px" onclick="openEditUser('${u.uid}','${u.name}','${d.id}')">✏️ تعديل</button>
           ${!isSelf?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
         </div>
         ${!isSelf&&u.perms?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
@@ -1855,84 +1850,6 @@ function loadXLSX(cb){
   s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
   s.onload=cb; document.head.appendChild(s);
 }
-
-
-
-// ═══ EDIT USER ═══
-window.openEditUser = function(uid, name, docId){
-  document.getElementById('eu-uid').value = uid;
-  document.getElementById('eu-docid').value = docId;
-  document.getElementById('eu-name').value = name;
-  document.getElementById('eu-pass').value = '';
-  document.getElementById('eu-err').style.display = 'none';
-  document.getElementById('edit-user-modal').classList.add('show');
-};
-
-window.saveEditUser = async function(){
-  const uid   = document.getElementById('eu-uid').value;
-  const docId = document.getElementById('eu-docid').value;
-  const name  = document.getElementById('eu-name').value.trim();
-  const pass  = document.getElementById('eu-pass').value;
-  const err   = document.getElementById('eu-err');
-  err.style.display = 'none';
-
-  if(!name){ err.textContent='أدخل الاسم'; err.style.display='block'; return; }
-
-  try{
-    // Update name in Firestore
-    await fbDb.collection('tp_users').doc(docId).update({name});
-
-    // Update password if provided
-    if(pass){
-      if(pass.length < 6){ err.textContent='كلمة المرور يجب أن تكون 6 أحرف على الأقل'; err.style.display='block'; return; }
-      // Get user email from Firestore
-      const snap = await fbDb.collection('tp_users').doc(docId).get();
-      const userData = snap.data();
-      const email = userData.email || (userData.empId + '@pharma.inv');
-
-      // Use secondary app to update password
-      const sec = firebase.initializeApp(FB_CONFIG, 'edit'+Date.now());
-      const secAuth = sec.auth();
-      try{
-        const cred = await secAuth.signInWithEmailAndPassword(email, pass);
-        // Can't update other user's password from client without re-auth
-        // For admin updating own password
-        if(uid === CU.uid){
-          await fbAuth.currentUser.updatePassword(pass);
-        }
-        await secAuth.signOut();
-      } catch(e2){
-        // Password update for other users requires Admin SDK (server-side)
-        // Show helpful message
-        err.textContent = 'تم تحديث الاسم ✅ — لتغيير كلمة المرور يجب حذف المستخدم وإعادة إضافته';
-        err.style.display = 'block';
-        err.style.background = '#0099ff15';
-        err.style.color = 'var(--accent2)';
-        err.style.borderColor = '#0099ff40';
-        // Still save the name
-        if(uid === CU.uid){
-          CUD.name = name;
-          document.getElementById('app-sub').textContent = name + ' — ' + (CUD.dept||'');
-        }
-        loadUsers();
-        return;
-      }
-    }
-
-    // Update local data if editing self
-    if(uid === CU.uid){
-      CUD.name = name;
-      document.getElementById('app-sub').textContent = name + ' — ' + (CUD.dept||'');
-    }
-
-    showMsg('✅ تم تحديث البيانات');
-    closeModal('edit-user-modal');
-    loadUsers();
-  } catch(e){
-    err.textContent = 'خطأ: ' + e.message;
-    err.style.display = 'block';
-  }
-};
 
 
 // ═══ DOSE CALCULATOR ═══
