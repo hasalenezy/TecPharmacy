@@ -1211,7 +1211,18 @@ function renderInv(){
     if(!matchQ) return false;
     const days=daysLeft(d.exp);
     const st=expStatus(days);
-    if(groupF && (d.group||'')!==groupF) return false;
+    if(groupF) {
+      // Check saved group first, then try to match from DRUG_DB
+      const dGroup = d.group || '';
+      if(dGroup && dGroup !== groupF) return false;
+      if(!dGroup) {
+        // Try to find group from DRUG_DB by name
+        const dbMatch = DRUG_DB.find(x => (d.name||'').toLowerCase().includes(x.n.toLowerCase()) || (d.name||'').toLowerCase().includes(x.a));
+        const inferredGroup = dbMatch?.g || '';
+        if(inferredGroup && inferredGroup !== groupF) return false;
+        if(!inferredGroup) return false; // drug has no group info
+      }
+    }
     if(invFilter==='all') return true;
     if(invFilter==='narcotic') return (d.cat||d.category)==='narcotic';
     if(invFilter==='psycho')   return (d.cat||d.category)==='psycho';
