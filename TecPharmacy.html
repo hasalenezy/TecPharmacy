@@ -542,7 +542,15 @@ td { padding:11px 14px; font-size:13px; }
     <div class="card">
       <div class="card-title">🔄 تسجيل حركة صرف</div>
       <div class="form-grid form-3">
-        <div class="field"><label>الدواء</label><select id="disp-drug" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;"><option value="">— اختر دواء —</option></select></div>
+        <div class="field"><label>الدواء</label>
+          <div style="position:relative">
+            <input type="text" id="disp-search" placeholder="🔍 ابحث عن دواء..." autocomplete="off"
+              oninput="onDispSearch()" onfocus="onDispSearch()"
+              style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;">
+            <input type="hidden" id="disp-drug">
+            <div id="disp-sug" style="position:absolute;top:100%;right:0;left:0;background:var(--surface);border:1px solid var(--accent);border-radius:10px;z-index:200;max-height:220px;overflow-y:auto;display:none;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,0.15)"></div>
+          </div>
+        </div>
         <div class="field"><label>نوع الحركة</label><select id="disp-type" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;"><option value="out">صرف خارج</option><option value="in">استلام داخل</option></select></div>
         <div class="field"><label>الكمية</label><input type="number" id="disp-qty" min="1" placeholder="0" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;outline:none;"></div>
       </div>
@@ -672,8 +680,6 @@ td { padding:11px 14px; font-size:13px; }
         <input type="checkbox" id="p-import"> 📤 استيراد Excel</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-request"> 📝 طلب أدوية من المستودع</label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
-        <input type="checkbox" id="p-viewInventory"> 💊 عرض المخزون</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-doseCalc"> 💊 حساب الجرعات</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
@@ -1051,7 +1057,6 @@ function buildTabs(){
     {id:'wh-reqs',    label:'📦 الطلبات الواردة', roles:['admin','warehouse']},
     {id:'wh-inv',     label:'💊 أدوية المستودع',  roles:['warehouse']},
     // Extra tabs from permissions (for non-admin roles)
-    {id:'inventory', label:'💊 المخزون', roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'viewInventory'},
     {id:'dispense',   label:'🔄 حركة الصرف',      roles:['pharmacy-in','pharmacy-out','warehouse'], perm:'dispense'},
     {id:'inventory',  label:'💊 الجرد',            roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'inventory'},
     {id:'wh-backup',  label:'💾 النسخ الاحتياطي', roles:['pharmacy-in','pharmacy-out','custodian'], perm:'backup'},
@@ -1188,6 +1193,10 @@ function selDrug(name,form,cat){
   document.getElementById('inp-qty').focus();
 }
 document.addEventListener('click',e=>{
+  if(!e.target.closest('#disp-search')&&!e.target.closest('#disp-sug')){
+    const s=document.getElementById('disp-sug');
+    if(s) s.style.display='none';
+  }
   if(!e.target.closest('#inp-name')&&!e.target.closest('#drug-sug')) document.getElementById('drug-sug').style.display='none';
   if(!e.target.closest('#preq-drug')&&!e.target.closest('#req-sug')){const s=document.getElementById('req-sug');if(s)s.style.display='none';}
 });
@@ -1331,18 +1340,63 @@ async function deleteDrug(id){
 
 // ═══ DISPENSE ═══
 function updateDispSel(){
-  const sel=document.getElementById('disp-drug');
-  if(!sel) return;
-  sel.innerHTML='<option value="">— اختر دواء —</option>'+drugs.map(d=>`<option value="${d.id}">${d.name} (${d.qty||0})</option>`).join('');
+  // Now using search input — just clear if needed
+  const inp=document.getElementById('disp-search');
+  if(inp) inp.value='';
+  const hid=document.getElementById('disp-drug');
+  if(hid) hid.value='';
 }
+
+window.onDispSearch=function(){
+  const q=(document.getElementById('disp-search')?.value||'').trim().toLowerCase();
+  const sug=document.getElementById('disp-sug');
+  if(!sug) return;
+  if(q.length<1){
+    // Show all drugs if empty
+    const all=drugs.slice(0,12);
+    if(!all.length){sug.style.display='none';return;}
+    sug.innerHTML=all.map(d=>dispSugItem(d)).join('');
+    sug.style.display='block';
+    return;
+  }
+  const matches=drugs.filter(d=>(d.name||'').toLowerCase().includes(q)).slice(0,10);
+  if(!matches.length){sug.style.display='none';return;}
+  sug.innerHTML=matches.map(d=>dispSugItem(d)).join('');
+  sug.style.display='block';
+};
+
+function dispSugItem(d){
+  const days=daysLeft(d.exp);
+  const st=expStatus(days);
+  const cat=(d.cat||d.category)==='narcotic'?'🔴':(d.cat||d.category)==='psycho'?'🟣':'';
+  return `<div onclick="selDispDrug('${d.id}','${(d.name||'').replace(/'/g,'')}')"
+    style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);"
+    onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:700;font-size:13px">${d.name||''} ${cat}</div>
+      <span style="font-size:11px;background:#0099ff15;color:var(--accent2);padding:2px 8px;border-radius:20px;font-weight:700">📦 ${d.qty||0}</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:3px">
+      <span style="font-size:11px;color:var(--text-muted)">${d.type||''}</span>
+      <span style="font-size:11px;color:${days<0?'var(--danger)':days<=90?'var(--warn)':'var(--success)'}">${st.l}</span>
+    </div>
+  </div>`;
+}
+
+window.selDispDrug=function(id,name){
+  document.getElementById('disp-drug').value=id;
+  document.getElementById('disp-search').value=name;
+  document.getElementById('disp-sug').style.display='none';
+};
 
 async function addDispense(){
   const drugId=document.getElementById('disp-drug').value;
+  if(!drugId){showMsg('⚠️ اختر دواء من القائمة');return;}
   const type=document.getElementById('disp-type').value;
   const qty=+document.getElementById('disp-qty').value;
   const dest=document.getElementById('disp-dest').value;
   const note=document.getElementById('disp-note').value.trim();
-  if(!drugId){showMsg('⚠️ اختر دواء');return;}
+
   if(!qty||qty<=0){showMsg('⚠️ أدخل كمية');return;}
   const d=drugs.find(x=>x.id===drugId);
   if(type==='out'&&qty>d.qty){showMsg(`⚠️ الكمية المتاحة: ${d.qty}`);return;}
@@ -1356,6 +1410,8 @@ async function addDispense(){
   await logActivity(type==='out'?'📤 صرف':'📥 استلام',`${d.name} (${qty}) ${dest?'→ '+dest:''}`);
   document.getElementById('disp-qty').value='';
   document.getElementById('disp-note').value='';
+  document.getElementById('disp-search').value='';
+  document.getElementById('disp-drug').value='';
   showMsg('✅ تم تسجيل الحركة');
   renderInv(); updateDispSel();
 }
@@ -1695,7 +1751,7 @@ function openAddUser(){
   ['um-name','um-empid','um-pass','um-dept'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('um-role').value='pharmacy-in';
   document.getElementById('um-err').style.display='none';
-  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request','p-viewInventory','p-doseCalc','p-drugInter'].forEach(id=>document.getElementById(id).checked=false);
+  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request','p-doseCalc','p-drugInter'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('add-user-modal').classList.add('show');
 }
 
@@ -1717,7 +1773,6 @@ async function addUser(){
     export:    document.getElementById('p-export').checked,
     import:    document.getElementById('p-import').checked,
     request:   document.getElementById('p-request').checked,
-    viewInventory: document.getElementById('p-viewInventory').checked,
     doseCalc:  document.getElementById('p-doseCalc').checked,
     drugInter: document.getElementById('p-drugInter').checked,
   };
@@ -1737,21 +1792,6 @@ async function addUser(){
   }
 }
 
-
-window.togglePerm = async function(docId, permKey, value){
-  if(!fbDb) return;
-  try{
-    const snap = await fbDb.collection('tp_users').doc(docId).get();
-    const perms = snap.data()?.perms || {};
-    perms[permKey] = value;
-    await fbDb.collection('tp_users').doc(docId).update({perms});
-    showMsg(value ? '✅ تم تفعيل الصلاحية' : '🚫 تم إلغاء الصلاحية');
-    loadUsers();
-  } catch(e){
-    showMsg('❌ خطأ في تحديث الصلاحية');
-  }
-};
-
 async function loadUsers(){
   if(!fbDb) return;
   const snap=await fbDb.collection('tp_users').get().catch(()=>({docs:[]}));
@@ -1759,15 +1799,8 @@ async function loadUsers(){
   const wrap=document.getElementById('users-list');
   if(!wrap) return;
   if(snap.docs.length===0){wrap.innerHTML='<div class="empty"><div class="icon">👥</div><p>لا يوجد مستخدمون</p></div>';return;}
-  const permLabels={viewInventory:'💊 عرض المخزون',dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد',request:'📝 طلب أدوية',doseCalc:'💊 جرعات',drugInter:'⚠️ تعارض'};
   wrap.innerHTML=snap.docs.map(d=>{
-    const u=d.data(); const isSelf=u.uid===CU?.uid; const docId=d.id;
-    const perms=u.perms||{};
-    const permToggles=Object.entries(permLabels).map(([k,v])=>`
-      <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;background:${perms[k]?'#0077b618':'var(--bg)'};padding:5px 10px;border-radius:20px;border:1px solid ${perms[k]?'var(--accent)':'var(--border)'};margin-bottom:4px">
-        <input type="checkbox" ${perms[k]?'checked':''} onchange="window.togglePerm('${docId}','${k}',this.checked)" style="display:none">
-        ${v}${perms[k]?' ✓':''}
-      </label>`).join('');
+    const u=d.data(); const isSelf=u.uid===CU?.uid;
     return `<div class="user-card">
       <div class="user-card-header">
         <div>
@@ -1778,9 +1811,8 @@ async function loadUsers(){
           <span class="badge badge-approved">${roles[u.role]||u.role}</span>
           ${!isSelf?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
         </div>
-        ${!isSelf?`<div style="margin-top:10px">
-          <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px">🔑 الصلاحيات — اضغط للتفعيل أو الإلغاء</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px">${permToggles}</div>
+        ${!isSelf&&u.perms?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${Object.entries({dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد',request:'📝 طلب أدوية',doseCalc:'💊 جرعات',drugInter:'⚠️ تعارض'}).filter(([k])=>u.perms[k]).map(([,v])=>`<span class="badge badge-approved" style="font-size:11px">${v}</span>`).join('')}
         </div>`:''}
         <div style="display:none"><!-- spacer --></div>
         </div>
