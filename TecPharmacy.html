@@ -671,6 +671,8 @@ td { padding:11px 14px; font-size:13px; }
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-inventory"> 💊 الجرد</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
+        <input type="checkbox" id="p-viewInventory"> 💊 عرض المخزون (قراءة فقط)</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-backup"> 💾 نسخ احتياطي</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;background:var(--surface2);padding:9px 12px;border-radius:10px;border:1px solid var(--border)">
         <input type="checkbox" id="p-restore"> 📂 استعادة نسخة</label>
@@ -1059,6 +1061,7 @@ function buildTabs(){
     // Extra tabs from permissions (for non-admin roles)
     {id:'dispense',   label:'🔄 حركة الصرف',      roles:['pharmacy-in','pharmacy-out','warehouse'], perm:'dispense'},
     {id:'inventory',  label:'💊 الجرد',            roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'inventory'},
+    {id:'inventory',  label:'💊 المخزون',           roles:['pharmacy-in','pharmacy-out','warehouse','custodian'], perm:'viewInventory'},
     {id:'wh-backup',  label:'💾 النسخ الاحتياطي', roles:['pharmacy-in','pharmacy-out','custodian'], perm:'backup'},
     {id:'dose-calc',  label:'💊 حساب الجرعات',      roles:['admin'], perm:null},
     {id:'drug-inter', label:'⚠️ تعارض الأدوية',     roles:['admin'], perm:null},
@@ -1751,7 +1754,7 @@ function openAddUser(){
   ['um-name','um-empid','um-pass','um-dept'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('um-role').value='pharmacy-in';
   document.getElementById('um-err').style.display='none';
-  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request','p-doseCalc','p-drugInter'].forEach(id=>document.getElementById(id).checked=false);
+  ['p-dispense','p-inventory','p-backup','p-restore','p-export','p-import','p-request','p-viewInventory','p-doseCalc','p-drugInter'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('add-user-modal').classList.add('show');
 }
 
@@ -1768,6 +1771,7 @@ async function addUser(){
   const perms={
     dispense:  document.getElementById('p-dispense').checked,
     inventory: document.getElementById('p-inventory').checked,
+    viewInventory: document.getElementById('p-viewInventory').checked,
     backup:    document.getElementById('p-backup').checked,
     restore:   document.getElementById('p-restore').checked,
     export:    document.getElementById('p-export').checked,
@@ -1792,6 +1796,21 @@ async function addUser(){
   }
 }
 
+
+window.togglePerm = async function(docId, permKey, value){
+  if(!fbDb) return;
+  try{
+    const snap = await fbDb.collection('tp_users').doc(docId).get();
+    const perms = snap.data()?.perms || {};
+    perms[permKey] = value;
+    await fbDb.collection('tp_users').doc(docId).update({perms});
+    showMsg(value ? '✅ تم تفعيل الصلاحية' : '🚫 تم إلغاء الصلاحية');
+    loadUsers();
+  } catch(e){
+    showMsg('❌ خطأ: ' + e.message);
+  }
+};
+
 async function loadUsers(){
   if(!fbDb) return;
   const snap=await fbDb.collection('tp_users').get().catch(()=>({docs:[]}));
@@ -1799,8 +1818,30 @@ async function loadUsers(){
   const wrap=document.getElementById('users-list');
   if(!wrap) return;
   if(snap.docs.length===0){wrap.innerHTML='<div class="empty"><div class="icon">👥</div><p>لا يوجد مستخدمون</p></div>';return;}
+  const permLabels={
+    viewInventory:'💊 عرض المخزون',
+    dispense:'🔄 حركة الصرف',
+    inventory:'💊 الجرد',
+    backup:'💾 نسخ احتياطي',
+    restore:'📂 استعادة نسخة',
+    export:'📥 تصدير Excel',
+    import:'📤 استيراد Excel',
+    request:'📝 طلب أدوية',
+    doseCalc:'💊 حساب جرعات',
+    drugInter:'⚠️ تعارض أدوية'
+  };
   wrap.innerHTML=snap.docs.map(d=>{
-    const u=d.data(); const isSelf=u.uid===CU?.uid;
+    const u=d.data(); const isSelf=u.uid===CU?.uid; const docId=d.id;
+    const perms=u.perms||{};
+    const permToggles=Object.entries(permLabels).map(([k,v])=>`
+      <label title="${v}" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;
+        background:${perms[k]?'#0077b618':'var(--bg)'};
+        padding:5px 10px;border-radius:20px;
+        border:1px solid ${perms[k]?'var(--accent)':'var(--border)'};
+        margin-bottom:4px;transition:all 0.2s">
+        <input type="checkbox" ${perms[k]?'checked':''} onchange="window.togglePerm('${docId}','${k}',this.checked)" style="display:none">
+        ${v}${perms[k]?' ✓':''}
+      </label>`).join('');
     return `<div class="user-card">
       <div class="user-card-header">
         <div>
@@ -1809,10 +1850,12 @@ async function loadUsers(){
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="badge badge-approved">${roles[u.role]||u.role}</span>
-          ${!isSelf?`<button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
+          ${!isSelf?`<button class="btn-secondary" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="openEditUser('${u.uid}','${u.name}','${docId}')">✏️</button>
+          <button class="btn-danger" style="padding:4px 10px" onclick="deleteUser('${u.uid}','${u.name}')">حذف</button>`:''}
         </div>
-        ${!isSelf&&u.perms?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${Object.entries({dispense:'🔄 صرف',inventory:'💊 جرد',backup:'💾 نسخ',restore:'📂 استعادة',export:'📥 Excel',import:'📤 استيراد',request:'📝 طلب أدوية',doseCalc:'💊 جرعات',drugInter:'⚠️ تعارض'}).filter(([k])=>u.perms[k]).map(([,v])=>`<span class="badge badge-approved" style="font-size:11px">${v}</span>`).join('')}
+        ${!isSelf?`<div style="margin-top:10px">
+          <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px">🔑 الصلاحيات — اضغط لتفعيل أو إلغاء</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">${permToggles}</div>
         </div>`:''}
         <div style="display:none"><!-- spacer --></div>
         </div>
